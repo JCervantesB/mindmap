@@ -107,7 +107,7 @@ export function useNodeDetail({ mapId }: UseNodeDetailOptions) {
       } finally {
         setIsSaving(false);
       }
-    }, 3000);
+    }, 15000);
     }, [selectedNode, isSaving, localTitle, localShortSummary, localContentMarkdown, localNodeType, localEditorialStatus, mapId, setNodes, markSaved]);
 
   const handleSave = useCallback(async () => {

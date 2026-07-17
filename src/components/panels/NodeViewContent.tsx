@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import type { CanvasNode } from "@/store/canvas";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 import type { Components } from "react-markdown";
 
 const nodeTypes = [
@@ -94,10 +95,10 @@ const markdownComponents: Components = {
       children?: React.ReactNode;
     };
 
-    if (inline) {
+    if (inline || !className) {
       return (
         <code
-          className="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.85em] text-foreground"
+          className="inline-block rounded bg-muted px-1.5 py-0.5 font-mono text-[0.85em] text-foreground break-inside-avoid"
           {...rest}
         >
           {children}
@@ -114,7 +115,9 @@ const markdownComponents: Components = {
       </code>
     );
   },
-  pre: ({ children }) => <pre className="my-4 overflow-x-auto">{children}</pre>,
+  pre: ({ children }) => (
+    <pre className="my-4 overflow-x-auto rounded-lg bg-muted p-4">{children}</pre>
+  ),
 };
 
 export function NodeViewContent({ node }: NodeViewContentProps) {
@@ -162,7 +165,7 @@ export function NodeViewContent({ node }: NodeViewContentProps) {
             "
           >
             <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
+              remarkPlugins={[remarkGfm, remarkBreaks]}
               components={markdownComponents}
             >
               {node.data.contentMarkdown}
