@@ -3,12 +3,13 @@
 import { useAuth, UserButton } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Brain, Plus, Map, Search, MessageSquare } from "lucide-react";
+import { Brain, Plus, Map, Search, MessageSquare, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { InterviewHistorySidebar } from "@/components/dashboard/InterviewHistorySidebar";
 import { InterviewDialog } from "@/components/interview/InterviewDialog";
+import { NotificationsDialog } from "@/components/NotificationsDialog";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -25,10 +26,21 @@ export default function DashboardLayout({
   const [mounted, setMounted] = useState(false);
   const [isInterviewOpen, setIsInterviewOpen] = useState(false);
   const [resumeSessionId, setResumeSessionId] = useState<string | null>(null);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (isSignedIn) {
+      fetch("/api/notifications")
+        .then((res) => res.ok ? res.json() : { unreadCount: 0 })
+        .then((data) => setUnreadNotifications(data.unreadCount || 0))
+        .catch(() => {});
+    }
+  }, [isSignedIn, notificationsOpen]);
 
   useEffect(() => {
     if (isLoaded && !isSignedIn) {
@@ -129,7 +141,22 @@ export default function DashboardLayout({
               <UserButton />
               <span className="text-sm text-muted-foreground">Mi cuenta</span>
             </div>
-            <ThemeToggle />
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setNotificationsOpen(true)}
+                className="relative"
+              >
+                <Bell className="h-4 w-4" />
+                {unreadNotifications > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-xs text-destructive-foreground">
+                    {unreadNotifications}
+                  </span>
+                )}
+              </Button>
+              <ThemeToggle />
+            </div>
           </div>
         </div>
       </aside>
@@ -145,6 +172,12 @@ export default function DashboardLayout({
         onOpenChange={setIsInterviewOpen}
         onComplete={handleInterviewComplete}
         resumeSessionId={resumeSessionId}
+      />
+
+      {/* Notifications Dialog */}
+      <NotificationsDialog
+        open={notificationsOpen}
+        onOpenChange={setNotificationsOpen}
       />
     </div>
   );

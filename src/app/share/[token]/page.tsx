@@ -2,18 +2,26 @@
 
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Brain, Loader2, AlertCircle } from "lucide-react";
+import { Brain, Loader2, AlertCircle, X, UserPlus, Check } from "lucide-react";
 import { MindMapCanvas } from "@/components/canvas/MindMapCanvas";
 import { useCanvasStore, CanvasNode, CanvasEdge } from "@/store/canvas";
 import { getLayoutedElements } from "@/lib/layout";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@clerk/nextjs";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 export default function SharePage() {
   const params = useParams();
   const token = params.token as string;
+  const { isSignedIn } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mapTitle, setMapTitle] = useState("");
-  const { setNodes, setEdges, setViewport } = useCanvasStore();
+  const [selectedNode, setSelectedNode] = useState<CanvasNode | null>(null);
+  const [requestStatus, setRequestStatus] = useState<"none" | "pending" | "requested">("none");
+  const [requesting, setRequesting] = useState(false);
+  const { setNodes, setEdges, setViewport, selectedNodeId, setSelectedNodeId } = useCanvasStore();
 
   useEffect(() => {
     async function loadSharedMap() {
@@ -129,6 +137,15 @@ export default function SharePage() {
     }
   }, [token, setNodes, setEdges, setViewport]);
 
+  useEffect(() => {
+    if (selectedNodeId) {
+      const node = useCanvasStore.getState().nodes.find((n) => n.id === selectedNodeId);
+      setSelectedNode(node || null);
+    } else {
+      setSelectedNode(null);
+    }
+  }, [selectedNodeId]);
+
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-muted/30">
@@ -152,17 +169,96 @@ export default function SharePage() {
     );
   }
 
+  const handleRequestCollaboration = async () => {
+    if (!isSignedIn) return;
+
+    setRequesting(true);
+    try {
+      const response = await fetch(`/api/share/${token}/request`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+
+      if (response.ok) {
+        setRequestStatus("requested");
+      }
+    } catch (error) {
+      console.error("Error requesting collaboration:", error);
+    } finally {
+      setRequesting(false);
+    }
+  };
+
   return (
     <div className="flex h-screen flex-col bg-muted/30">
       <header className="flex h-14 items-center gap-2 border-b bg-card px-4">
         <Brain className="h-5 w-5 text-primary" />
         <span className="font-medium">{mapTitle}</span>
-        <span className="ml-auto text-xs text-muted-foreground">
-          Solo lectura
+        <span className="ml-auto flex items-center gap-2">
+          {requestStatus === "requested" ? (
+            <span className="flex items-center gap-1 text-sm text-green-600">
+              <Check className="h-4 w-4" />
+              Solicitud enviada
+            </span>
+          ) : isSignedIn ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRequestCollaboration}
+              disabled={requesting}
+              className="gap-1"
+            >
+              <UserPlus className="h-4 w-4" />
+              {requesting ? "Enviando..." : "Solicitar colaborar"}
+            </Button>
+          ) : null}
+          <span className="text-xs text-muted-foreground">
+            Solo lectura
+          </span>
         </span>
       </header>
-      <div className="flex-1">
-        <MindMapCanvas mapId="" />
+      <div className="flex-1 flex">
+        <div className="flex-1">
+          <MindMapCanvas mapId="" />
+        </div>
+        {selectedNode && (
+          <div className="w-96 border-l bg-card flex flex-col h-full">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="font-semibold">{selectedNode.data.title}</h2>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setSelectedNodeId(null)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <div className="space-y-3">
+                {selectedNode.data.shortSummary && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedNode.data.shortSummary}
+                    </p>
+                  </div>
+                )}
+                {selectedNode.data.contentMarkdown && (
+                  <div className="prose prose-sm dark:prose-invert max-w-none">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {selectedNode.data.contentMarkdown}
+                    </ReactMarkdown>
+                  </div>
+                )}
+                {!selectedNode.data.shortSummary && !selectedNode.data.contentMarkdown && (
+                  <p className="text-sm text-muted-foreground italic">
+                    Este nodo aún no tiene contenido.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -165,7 +165,8 @@ export function CollaboratorDialog({ mapId, open, onOpenChange }: CollaboratorDi
   }
 
   async function copyToClipboard(text: string) {
-    await navigator.clipboard.writeText(text);
+    const fullUrl = text.startsWith('http') ? text : `${window.location.origin}${text}`;
+    await navigator.clipboard.writeText(fullUrl);
     addToast({ type: "success", message: "Copiado al portapapeles" });
   }
 

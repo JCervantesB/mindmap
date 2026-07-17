@@ -132,6 +132,35 @@ export const mapShareLinks = pgTable('map_share_links', {
   index('map_share_links_map_id_idx').on(table.mapId),
 ]);
 
+export const collaborationRequests = pgTable('collaboration_requests', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  mapId: uuid('map_id').references(() => mindMaps.id).notNull(),
+  requesterId: uuid('requester_id').references(() => users.id).notNull(),
+  status: text('status').notNull().default('pending'),
+  message: text('message'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index('collaboration_requests_map_id_idx').on(table.mapId),
+  index('collaboration_requests_requester_idx').on(table.requesterId),
+  unique('collaboration_requests_map_requester_unique').on(table.mapId, table.requesterId),
+]);
+
+export const notifications = pgTable('notifications', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id).notNull(),
+  type: text('type').notNull(),
+  title: text('title').notNull(),
+  message: text('message'),
+  link: text('link'),
+  relatedId: uuid('related_id'),
+  readAt: timestamp('read_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index('notifications_user_id_idx').on(table.userId),
+  index('notifications_user_read_idx').on(table.userId, table.readAt),
+]);
+
 export const interviewSessions = pgTable('interview_sessions', {
   id: uuid('id').primaryKey().defaultRandom(),
   ownerId: uuid('owner_id').references(() => users.id).notNull(),
