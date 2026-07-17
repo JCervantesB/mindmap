@@ -95,7 +95,7 @@ export async function PUT(
       return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
     }
 
-    await requirePermission(mapId, user.id, "map.update");
+    await requirePermission(mapId, user.id, "map.read");
 
     const body = await request.json();
     const { viewportX, viewportY, zoom, selectedNodeId, panelState, collapsedNodes } = body;

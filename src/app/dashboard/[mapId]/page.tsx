@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Brain, ArrowLeft, Maximize2, Loader2, Plus, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MindMapCanvas } from "@/components/canvas/MindMapCanvas";
@@ -19,6 +19,8 @@ export default function MapEditorPage() {
   const { setDetailPanelOpen, detailPanelOpen, addToast } = useUIStore();
   const [isCreatingNode, setIsCreatingNode] = useState(false);
   const [collaboratorDialogOpen, setCollaboratorDialogOpen] = useState(false);
+  const lastSavedCollapsedRef = useRef<string[]>([]);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     async function loadMap() {
@@ -192,6 +194,33 @@ export default function MapEditorPage() {
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [mapId]);
+
+  useEffect(() => {
+    if (JSON.stringify(collapsedNodes) !== JSON.stringify(lastSavedCollapsedRef.current)) {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      saveTimeoutRef.current = setTimeout(() => {
+        const state = useCanvasStore.getState();
+        lastSavedCollapsedRef.current = state.collapsedNodes;
+        fetch(`/api/maps/${mapId}/viewport`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            viewportX: state.viewport.x,
+            viewportY: state.viewport.y,
+            zoom: state.viewport.zoom,
+            collapsedNodes: state.collapsedNodes,
+          }),
+        }).catch((err) => console.error("Error saving viewport:", err));
+      }, 500);
+    }
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [mapId, collapsedNodes]);
 
   const handleCreateNode = async () => {
     setIsCreatingNode(true);
