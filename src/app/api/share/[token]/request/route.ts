@@ -1,8 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { auth, clerkClient } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { mapShareLinks, mindMaps, users, collaborationRequests, notifications } from "@/lib/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
+
+async function ensureUserExists(clerkUserId: string) {
+  const [existing] = await db
+    .select()
+    .from(users)
+    .where(eq(users.clerkUserId, clerkUserId));
+
+  if (existing) return existing;
+
+  const clerk = await clerkClient();
+  const clerkUser = await clerk.users.getUser(clerkUserId);
+
+  const email = clerkUser.emailAddresses[0]?.emailAddress ?? null;
+  const displayName =
+    clerkUser.firstName && clerkUser.lastName
+      ? `${clerkUser.firstName} ${clerkUser.lastName}`
+      : clerkUser.firstName ?? clerkUser.username ?? null;
+  const avatarUrl = clerkUser.imageUrl ?? null;
+
+  const [newUser] = await db
+    .insert(users)
+    .values({
+      clerkUserId,
+      email,
+      displayName,
+      avatarUrl,
+    })
+    .returning();
+
+  return newUser;
+}
 
 export async function POST(
   request: NextRequest,
@@ -10,11 +41,14 @@ export async function POST(
 ) {
   try {
     const { userId } = await auth();
+    console.log("[REQUEST COLLAB] auth().userId:", userId);
+
     if (!userId) {
       return NextResponse.json({ error: "No autenticado" }, { status: 401 });
     }
 
     const { token } = await params;
+    console.log("[REQUEST COLLAB] token:", token);
 
     const [shareLink] = await db
       .select()
@@ -54,8 +88,13 @@ export async function POST(
       .where(eq(users.clerkUserId, userId));
 
     if (!user) {
+      const allUsers = await db.select({ id: users.id, clerkUserId: users.clerkUserId, email: users.email }).from(users);
+      console.log("[DEBUG] userId from auth:", userId);
+      console.log("[DEBUG] All users in DB:", JSON.stringify(allUsers));
       return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
     }
+
+    console.log("[REQUEST COLLAB] Found user:", user.id, user.email);
 
     if (map.ownerId === user.id) {
       return NextResponse.json({ error: "Eres el propietario" }, { status: 400 });

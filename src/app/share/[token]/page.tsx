@@ -27,11 +27,12 @@ export default function SharePage() {
   const [requestStatus, setRequestStatus] = useState<"none" | "pending" | "requested">("none");
   const [requesting, setRequesting] = useState(false);
   const { setNodes, setEdges, setViewport, selectedNodeId, setSelectedNodeId } = useCanvasStore();
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "";
 
   useEffect(() => {
     async function loadSharedMap() {
       try {
-        const response = await fetch(`/api/share/${token}`);
+        const response = await fetch(`${baseUrl}/api/share/${token}`);
 
         if (!response.ok) {
           if (response.status === 404) {
@@ -208,9 +209,10 @@ export default function SharePage() {
   const handleRequestCollaboration = async () => {
     if (!isSignedIn) return;
 
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "";
     setRequesting(true);
     try {
-      const response = await fetch(`/api/share/${token}/request`, {
+      const response = await fetch(`${baseUrl}/api/share/${token}/request`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),

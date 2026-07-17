@@ -96,20 +96,28 @@ export async function POST(
     await requirePermission(mapId, currentUser.id, "map.manage_collaborators");
 
     const body = await request.json();
-    const { email, role = "editor" } = body;
+    const { email, userId: targetUserId, role = "editor" } = body;
 
-    if (!email) {
-      return NextResponse.json({ error: "Email requerido" }, { status: 400 });
+    if (!email && !targetUserId) {
+      return NextResponse.json({ error: "Email o userId requerido" }, { status: 400 });
     }
 
     if (!["editor", "commenter", "viewer"].includes(role)) {
       return NextResponse.json({ error: "Rol inválido" }, { status: 400 });
     }
 
-    const [invitedUser] = await db
-      .select()
-      .from(users)
-      .where(eq(users.email, email));
+    let invitedUser;
+    if (targetUserId) {
+      [invitedUser] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, targetUserId));
+    } else {
+      [invitedUser] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email));
+    }
 
     if (!invitedUser) {
       return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
