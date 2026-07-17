@@ -35,6 +35,7 @@ interface CanvasState {
   isDragging: boolean;
   isConnecting: boolean;
   minimapOpen: boolean;
+  collapsedNodes: string[];
 
   setNodes: (nodes: CanvasNode[]) => void;
   setEdges: (edges: CanvasEdge[]) => void;
@@ -51,6 +52,7 @@ interface CanvasState {
   setIsConnecting: (isConnecting: boolean) => void;
   toggleMinimap: () => void;
   toggleNodeCollapse: (nodeId: string) => void;
+  setCollapsedNodes: (collapsedNodes: string[]) => void;
   resetCanvas: () => void;
 }
 
@@ -63,6 +65,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   isDragging: false,
   isConnecting: false,
   minimapOpen: true,
+  collapsedNodes: [],
 
   setNodes: (nodes) => set({ nodes }),
   setEdges: (edges) => set({ edges }),
@@ -107,12 +110,17 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   setIsConnecting: (isConnecting) => set({ isConnecting }),
   toggleMinimap: () => set((state) => ({ minimapOpen: !state.minimapOpen })),
 
+  setCollapsedNodes: (collapsedNodes) => set({ collapsedNodes }),
+
   toggleNodeCollapse: (nodeId) => {
     const state = get();
     const node = state.nodes.find((n) => n.id === nodeId);
     if (!node) return;
 
-    const newCollapsedState = !node.data.isCollapsed;
+    const isCurrentlyCollapsed = state.collapsedNodes.includes(nodeId);
+    const newCollapsedNodes = isCurrentlyCollapsed
+      ? state.collapsedNodes.filter((id) => id !== nodeId)
+      : [...state.collapsedNodes, nodeId];
 
     const childIds = new Set<string>();
     const findChildren = (parentId: string) => {
@@ -126,24 +134,25 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     findChildren(nodeId);
 
     set({
+      collapsedNodes: newCollapsedNodes,
       nodes: state.nodes.map((n) => {
         if (n.id === nodeId) {
           return {
             ...n,
-            data: { ...n.data, isCollapsed: newCollapsedState },
+            data: { ...n.data, isCollapsed: !isCurrentlyCollapsed },
           };
         }
         if (childIds.has(n.id)) {
           return {
             ...n,
-            hidden: newCollapsedState,
+            hidden: !isCurrentlyCollapsed,
           };
         }
         return n;
       }),
       edges: state.edges.map((e) => ({
         ...e,
-        hidden: childIds.has(e.source) || childIds.has(e.target) ? newCollapsedState : e.hidden,
+        hidden: childIds.has(e.source) || childIds.has(e.target) ? !isCurrentlyCollapsed : e.hidden,
       })),
     });
   },
@@ -154,5 +163,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     viewport: { x: 0, y: 0, zoom: 1 },
     selectedNodeId: null,
     selectedEdgeId: null,
+    collapsedNodes: [],
   }),
 }));

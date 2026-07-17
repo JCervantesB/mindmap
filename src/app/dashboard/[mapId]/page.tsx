@@ -15,7 +15,7 @@ export default function MapEditorPage() {
   const params = useParams();
   const mapId = params.mapId as string;
   const [isLoading, setIsLoading] = useState(true);
-  const { setNodes, setEdges, setViewport, toggleNodeCollapse, selectedNodeId, nodes, viewport } = useCanvasStore();
+  const { setNodes, setEdges, setViewport, setCollapsedNodes, toggleNodeCollapse, selectedNodeId, nodes, viewport, collapsedNodes } = useCanvasStore();
   const { setDetailPanelOpen, detailPanelOpen, addToast } = useUIStore();
   const [isCreatingNode, setIsCreatingNode] = useState(false);
   const [collaboratorDialogOpen, setCollaboratorDialogOpen] = useState(false);
@@ -23,10 +23,25 @@ export default function MapEditorPage() {
   useEffect(() => {
     async function loadMap() {
       try {
-        const [mapResponse, viewportResponse] = await Promise.all([
-          fetch(`/api/maps/${mapId}`),
-          fetch(`/api/maps/${mapId}/viewport`).catch(() => null),
-        ]);
+        const viewportResponse = await fetch(`/api/maps/${mapId}/viewport`).catch(() => null);
+        let savedCollapsedNodes: string[] = [];
+
+        if (viewportResponse?.ok) {
+          const viewportData = await viewportResponse.json();
+          if (viewportData.viewportX !== undefined) {
+            setViewport({
+              x: viewportData.viewportX,
+              y: viewportData.viewportY,
+              zoom: viewportData.zoom,
+            });
+            if (viewportData.collapsedNodes && viewportData.collapsedNodes.length > 0) {
+              savedCollapsedNodes = viewportData.collapsedNodes;
+              setCollapsedNodes(savedCollapsedNodes);
+            }
+          }
+        }
+
+        const mapResponse = await fetch(`/api/maps/${mapId}`);
 
         if (mapResponse.ok) {
           const data = await mapResponse.json();
@@ -70,12 +85,30 @@ export default function MapEditorPage() {
                 editorialStatus: node.editorialStatus,
                 version: node.version,
                 position: node.position,
-                isCollapsed: node.isCollapsed,
+                isCollapsed: savedCollapsedNodes.includes(node.id),
                 childCount: childCountMap.get(node.id) || 0,
                 parentNodeId: node.parentNodeId,
                 onToggleCollapse: toggleNodeCollapse,
               },
             }));
+
+            if (savedCollapsedNodes.length > 0) {
+              const childIds = new Set<string>();
+              const findChildren = (parentId: string) => {
+                data.edges?.forEach((edge: { sourceNodeId: string; targetNodeId: string }) => {
+                  if (edge.sourceNodeId === parentId && !childIds.has(edge.targetNodeId)) {
+                    childIds.add(edge.targetNodeId);
+                    findChildren(edge.targetNodeId);
+                  }
+                });
+              };
+              savedCollapsedNodes.forEach((nodeId) => findChildren(nodeId));
+
+              canvasNodes = canvasNodes.map((n) => ({
+                ...n,
+                hidden: childIds.has(n.id) || savedCollapsedNodes.includes(n.id),
+              }));
+            }
           }
 
           if (data.edges && canvasNodes.length > 0) {
@@ -96,6 +129,25 @@ export default function MapEditorPage() {
               },
             }));
 
+            if (savedCollapsedNodes.length > 0) {
+              const childIds = new Set<string>();
+              const findChildren = (parentId: string) => {
+                data.edges?.forEach((edge: { sourceNodeId: string; targetNodeId: string }) => {
+                  if (edge.sourceNodeId === parentId && !childIds.has(edge.targetNodeId)) {
+                    childIds.add(edge.targetNodeId);
+                    findChildren(edge.targetNodeId);
+                  }
+                });
+              };
+              savedCollapsedNodes.forEach((nodeId) => findChildren(nodeId));
+
+              canvasEdges.forEach((e) => {
+                if (childIds.has(e.source) || childIds.has(e.target) || savedCollapsedNodes.includes(e.source)) {
+                  e.hidden = true;
+                }
+              });
+            }
+
             const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
               canvasNodes,
               canvasEdges,
@@ -108,17 +160,6 @@ export default function MapEditorPage() {
             setNodes(canvasNodes);
           }
         }
-
-        if (viewportResponse?.ok) {
-          const viewportData = await viewportResponse.json();
-          if (viewportData.viewportX !== undefined) {
-            setViewport({
-              x: viewportData.viewportX,
-              y: viewportData.viewportY,
-              zoom: viewportData.zoom,
-            });
-          }
-        }
       } catch (error) {
         console.error("Failed to load map:", error);
       } finally {
@@ -129,7 +170,7 @@ export default function MapEditorPage() {
     if (mapId) {
       loadMap();
     }
-  }, [mapId, setNodes, setEdges, setViewport]);
+  }, [mapId, setNodes, setEdges, setViewport, setCollapsedNodes]);
 
   useEffect(() => {
     if (selectedNodeId) {
@@ -139,11 +180,12 @@ export default function MapEditorPage() {
 
   useEffect(() => {
     const handleBeforeUnload = () => {
-      const currentViewport = useCanvasStore.getState().viewport;
+      const state = useCanvasStore.getState();
       navigator.sendBeacon(`/api/maps/${mapId}/viewport`, JSON.stringify({
-        viewportX: currentViewport.x,
-        viewportY: currentViewport.y,
-        zoom: currentViewport.zoom,
+        viewportX: state.viewport.x,
+        viewportY: state.viewport.y,
+        zoom: state.viewport.zoom,
+        collapsedNodes: state.collapsedNodes,
       }));
     };
 

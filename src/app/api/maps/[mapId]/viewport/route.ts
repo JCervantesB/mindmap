@@ -47,6 +47,7 @@ export async function GET(
         zoom: 1,
         selectedNodeId: null,
         panelState: "open",
+        collapsedNodes: [],
       });
     }
 
@@ -56,6 +57,7 @@ export async function GET(
       zoom: Number(view.zoom),
       selectedNodeId: view.selectedNodeId,
       panelState: view.panelState,
+      collapsedNodes: view.collapsedNodes ? JSON.parse(view.collapsedNodes) : [],
     });
   } catch (error) {
     console.error("Error obteniendo viewport:", error);
@@ -96,7 +98,7 @@ export async function PUT(
     await requirePermission(mapId, user.id, "map.update");
 
     const body = await request.json();
-    const { viewportX, viewportY, zoom, selectedNodeId, panelState } = body;
+    const { viewportX, viewportY, zoom, selectedNodeId, panelState, collapsedNodes } = body;
 
     const [view] = await db
       .select()
@@ -112,6 +114,7 @@ export async function PUT(
           zoom: String(zoom ?? 1),
           selectedNodeId: selectedNodeId ?? null,
           panelState: panelState ?? null,
+          collapsedNodes: collapsedNodes ? JSON.stringify(collapsedNodes) : view.collapsedNodes,
           updatedAt: new Date(),
         })
         .where(eq(mapViews.id, view.id));
@@ -124,6 +127,7 @@ export async function PUT(
         zoom: String(zoom ?? 1),
         selectedNodeId: selectedNodeId ?? null,
         panelState: panelState ?? null,
+        collapsedNodes: collapsedNodes ? JSON.stringify(collapsedNodes) : "[]",
       });
     }
 

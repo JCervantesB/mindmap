@@ -43,6 +43,7 @@ export const mapViews = pgTable('map_views', {
   zoom: numeric('zoom').notNull().default('1'),
   selectedNodeId: uuid('selected_node_id'),
   panelState: text('panel_state'),
+  collapsedNodes: text('collapsed_nodes').default('[]'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [

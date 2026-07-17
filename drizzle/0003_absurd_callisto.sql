@@ -1,0 +1,1 @@
+ALTER TABLE "map_views" ADD COLUMN "collapsed_nodes" text DEFAULT '[]';
