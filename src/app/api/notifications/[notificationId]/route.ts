@@ -104,3 +104,96 @@ export async function POST(
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }
 }
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ notificationId: string }> }
+) {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+    }
+
+    const { notificationId } = await params;
+
+    const [currentUser] = await db
+      .select()
+      .from(users)
+      .where(eq(users.clerkUserId, userId));
+
+    if (!currentUser) {
+      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
+    }
+
+    const [notification] = await db
+      .select()
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.id, notificationId),
+          eq(notifications.userId, currentUser.id)
+        )
+      );
+
+    if (!notification) {
+      return NextResponse.json({ error: "Notificación no encontrada" }, { status: 404 });
+    }
+
+    await db
+      .update(notifications)
+      .set({ readAt: new Date() })
+      .where(eq(notifications.id, notificationId));
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Error marking notification as read:", error);
+    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ notificationId: string }> }
+) {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+    }
+
+    const { notificationId } = await params;
+
+    const [currentUser] = await db
+      .select()
+      .from(users)
+      .where(eq(users.clerkUserId, userId));
+
+    if (!currentUser) {
+      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
+    }
+
+    const [notification] = await db
+      .select()
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.id, notificationId),
+          eq(notifications.userId, currentUser.id)
+        )
+      );
+
+    if (!notification) {
+      return NextResponse.json({ error: "Notificación no encontrada" }, { status: 404 });
+    }
+
+    await db
+      .delete(notifications)
+      .where(eq(notifications.id, notificationId));
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Error deleting notification:", error);
+    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+  }
+}

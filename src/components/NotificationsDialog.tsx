@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Bell, Check, X, Loader2 } from "lucide-react";
+import { Bell, Check, X, Loader2, Eye, Trash2 } from "lucide-react";
 import { useUIStore } from "@/store/ui";
 
 interface Notification {
@@ -83,6 +83,47 @@ export function NotificationsDialog({ open, onOpenChange }: NotificationsDialogP
     }
   }
 
+  async function handleMarkAsRead(notificationId: string) {
+    setProcessingId(notificationId);
+    try {
+      const response = await fetch(`/api/notifications/${notificationId}`, {
+        method: "PATCH",
+      });
+
+      if (response.ok) {
+        setNotifications(
+          notifications.map((n) =>
+            n.id === notificationId ? { ...n, readAt: new Date().toISOString() } : n
+          )
+        );
+      }
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
+      addToast({ type: "error", message: "Error al marcar como leída" });
+    } finally {
+      setProcessingId(null);
+    }
+  }
+
+  async function handleDelete(notificationId: string) {
+    setProcessingId(notificationId);
+    try {
+      const response = await fetch(`/api/notifications/${notificationId}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        setNotifications(notifications.filter((n) => n.id !== notificationId));
+        addToast({ type: "success", message: "Notificación eliminada" });
+      }
+    } catch (error) {
+      console.error("Error deleting notification:", error);
+      addToast({ type: "error", message: "Error al eliminar notificación" });
+    } finally {
+      setProcessingId(null);
+    }
+  }
+
   const unreadCount = notifications.filter((n) => !n.readAt).length;
 
   return (
@@ -130,7 +171,7 @@ export function NotificationsDialog({ open, onOpenChange }: NotificationsDialogP
                         {new Date(notification.createdAt).toLocaleDateString()}
                       </p>
                     </div>
-                    {notification.type === "collaboration_request" && (
+                    {notification.type === "collaboration_request" ? (
                       <div className="flex gap-1">
                         <Button
                           size="icon"
@@ -153,6 +194,31 @@ export function NotificationsDialog({ open, onOpenChange }: NotificationsDialogP
                           disabled={processingId === notification.id}
                         >
                           <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex gap-1">
+                        {!notification.readAt && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-100"
+                            onClick={() => handleMarkAsRead(notification.id)}
+                            disabled={processingId === notification.id}
+                            title="Marcar como leída"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 text-gray-600 hover:text-gray-700 hover:bg-gray-100"
+                          onClick={() => handleDelete(notification.id)}
+                          disabled={processingId === notification.id}
+                          title="Eliminar"
+                        >
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     )}

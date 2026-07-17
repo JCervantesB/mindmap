@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { mapNodes, mindMaps, users } from "@/lib/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
+import { requirePermission } from "@/lib/permissions";
 
 export async function PATCH(
   request: NextRequest,
@@ -45,9 +46,11 @@ export async function PATCH(
       .from(users)
       .where(eq(users.clerkUserId, userId));
 
-    if (!user || map.ownerId !== user.id) {
-      return NextResponse.json({ error: "Acceso denegado" }, { status: 403 });
+    if (!user) {
+      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
     }
+
+    await requirePermission(node.mapId, user.id, "node.update");
 
     const [updatedNode] = await db
       .update(mapNodes)

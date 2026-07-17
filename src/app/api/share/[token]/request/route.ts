@@ -82,19 +82,8 @@ export async function POST(
       return NextResponse.json({ error: "Mapa no encontrado" }, { status: 404 });
     }
 
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.clerkUserId, userId));
-
-    if (!user) {
-      const allUsers = await db.select({ id: users.id, clerkUserId: users.clerkUserId, email: users.email }).from(users);
-      console.log("[DEBUG] userId from auth:", userId);
-      console.log("[DEBUG] All users in DB:", JSON.stringify(allUsers));
-      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
-    }
-
-    console.log("[REQUEST COLLAB] Found user:", user.id, user.email);
+    const user = await ensureUserExists(userId);
+    console.log("[REQUEST COLLAB] Found/created user:", user.id, user.email);
 
     if (map.ownerId === user.id) {
       return NextResponse.json({ error: "Eres el propietario" }, { status: 400 });

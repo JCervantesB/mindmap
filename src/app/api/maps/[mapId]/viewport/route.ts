@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { mapViews, mindMaps, users } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
+import { requirePermission } from "@/lib/permissions";
 
 export async function GET(
   request: NextRequest,
@@ -88,9 +89,11 @@ export async function PUT(
       .from(users)
       .where(eq(users.clerkUserId, userId));
 
-    if (!user || map.ownerId !== user.id) {
-      return NextResponse.json({ error: "Acceso denegado" }, { status: 403 });
+    if (!user) {
+      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
     }
+
+    await requirePermission(mapId, user.id, "map.update");
 
     const body = await request.json();
     const { viewportX, viewportY, zoom, selectedNodeId, panelState } = body;

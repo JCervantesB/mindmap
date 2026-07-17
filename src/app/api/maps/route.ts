@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
-import { users, mindMaps, mapNodes } from "@/lib/db/schema";
-import { eq, and, isNull, desc, sql } from "drizzle-orm";
+import { users, mindMaps, mapNodes, mapCollaborators } from "@/lib/db/schema";
+import { eq, and, isNull, desc, sql, or } from "drizzle-orm";
 
 export async function GET() {
   try {
@@ -30,9 +30,22 @@ export async function GET() {
         status: mindMaps.status,
         createdAt: mindMaps.createdAt,
         updatedAt: mindMaps.updatedAt,
+        ownerId: mindMaps.ownerId,
       })
       .from(mindMaps)
-      .where(and(eq(mindMaps.ownerId, user.id), isNull(mindMaps.deletedAt)))
+      .where(
+        and(
+          isNull(mindMaps.deletedAt),
+          or(
+            eq(mindMaps.ownerId, user.id),
+            sql`EXISTS (
+              SELECT 1 FROM map_collaborators 
+              WHERE map_collaborators.map_id = mind_maps.id 
+              AND map_collaborators.user_id = ${user.id}
+            )`
+          )
+        )
+      )
       .orderBy(desc(mindMaps.updatedAt));
 
     const mapsWithCount = await Promise.all(
@@ -42,9 +55,19 @@ export async function GET() {
           .from(mapNodes)
           .where(eq(mapNodes.mapId, map.id));
 
+        const isCollaborator = map.ownerId !== user.id;
+
         return {
-          ...map,
+          id: map.id,
+          title: map.title,
+          description: map.description,
+          rootTopic: map.rootTopic,
+          visibility: map.visibility,
+          status: map.status,
+          createdAt: map.createdAt,
+          updatedAt: map.updatedAt,
           nodeCount: Number(count),
+          isCollaborator,
         };
       })
     );
