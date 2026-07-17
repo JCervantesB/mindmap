@@ -104,6 +104,6 @@ export async function POST(
     return NextResponse.json({ success: true, request: newRequest });
   } catch (error) {
     console.error("Error requesting collaboration:", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Error interno" }, { status: 500 });
   }
 }

@@ -1,13 +1,14 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Brain, Loader2, AlertCircle, X, UserPlus, Check } from "lucide-react";
 import { MindMapCanvas } from "@/components/canvas/MindMapCanvas";
 import { useCanvasStore, CanvasNode, CanvasEdge } from "@/store/canvas";
 import { getLayoutedElements } from "@/lib/layout";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@clerk/nextjs";
+import { useUIStore } from "@/store/ui";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -15,9 +16,13 @@ export default function SharePage() {
   const params = useParams();
   const token = params.token as string;
   const { isSignedIn } = useAuth();
+  const { addToast } = useUIStore();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mapTitle, setMapTitle] = useState("");
+  const [panelWidth, setPanelWidth] = useState(400);
+  const [isResizing, setIsResizing] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
   const [selectedNode, setSelectedNode] = useState<CanvasNode | null>(null);
   const [requestStatus, setRequestStatus] = useState<"none" | "pending" | "requested">("none");
   const [requesting, setRequesting] = useState(false);
@@ -146,6 +151,37 @@ export default function SharePage() {
     }
   }, [selectedNodeId]);
 
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing || !panelRef.current) return;
+      const container = panelRef.current.parentElement;
+      if (!container) return;
+      const containerRect = container.getBoundingClientRect();
+      const newWidth = containerRect.right - e.clientX;
+      const clampedWidth = Math.min(Math.max(newWidth, 280), 1200);
+      setPanelWidth(clampedWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    if (isResizing) {
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isResizing]);
+
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-muted/30">
@@ -182,9 +218,14 @@ export default function SharePage() {
 
       if (response.ok) {
         setRequestStatus("requested");
+        addToast({ type: "success", message: "Solicitud enviada" });
+      } else {
+        const data = await response.json();
+        addToast({ type: "error", message: data.error || "Error al enviar solicitud" });
       }
     } catch (error) {
       console.error("Error requesting collaboration:", error);
+      addToast({ type: "error", message: "Error al enviar solicitud" });
     } finally {
       setRequesting(false);
     }
@@ -223,7 +264,16 @@ export default function SharePage() {
           <MindMapCanvas mapId="" />
         </div>
         {selectedNode && (
-          <div className="w-96 border-l bg-card flex flex-col h-full">
+          <div
+            ref={panelRef}
+            className="relative border-l bg-card flex flex-col h-full shrink-0"
+            style={{ width: panelWidth }}
+          >
+            <div
+              className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-primary/40 active:bg-primary/50 transition-colors bg-muted"
+              onMouseDown={handleMouseDown}
+              onClick={(e) => e.stopPropagation()}
+            />
             <div className="flex items-center justify-between p-4 border-b">
               <h2 className="font-semibold">{selectedNode.data.title}</h2>
               <Button
