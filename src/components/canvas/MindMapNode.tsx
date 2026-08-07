@@ -2,6 +2,8 @@
 
 import { memo, useState } from "react";
 import { Handle, Position, NodeProps } from "reactflow";
+import { NodeResizer } from "@reactflow/node-resizer";
+import "@reactflow/node-resizer/dist/style.css";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useCanvasStore, CanvasNode } from "@/store/canvas";
 import { cn } from "@/lib/utils";
@@ -41,18 +43,30 @@ function MindMapNodeComponent({ data, selected }: NodeProps) {
   return (
     <div
       className={cn(
-        "px-4 py-2 rounded-lg border-2 min-w-[150px] max-w-[250px] transition-all duration-200",
-        "hover:shadow-md hover:scale-105",
+        "px-4 py-2 rounded-lg border-2 min-w-[150px] w-full h-full overflow-hidden",
+        "hover:shadow-md",
         nodeTypeStyles[nodeData.nodeType] || nodeTypeStyles.concept,
         isSelected && "ring-2 ring-ring ring-offset-2 ring-offset-background"
       )}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
+      <NodeResizer
+        isVisible={isSelected}
+        minWidth={150}
+        minHeight={60}
+        lineClassName="border-primary"
+        handleClassName="bg-primary border-2 border-white"
+        color="#64748b"
+        onResizeEnd={(_, params) => {
+          nodeData.onResize?.(nodeData.id, params.width, params.height);
+        }}
+      />
+
       <Handle
         type="target"
         position={Position.Left}
-        className="w-3 h-3 border-2 bg-background"
+        className="bg-background cursor-pointer transition-all"
       />
 
       <div className="flex items-center gap-2">
@@ -96,7 +110,7 @@ function MindMapNodeComponent({ data, selected }: NodeProps) {
       <Handle
         type="source"
         position={Position.Right}
-        className="w-3 h-3 border-2 bg-background"
+        className="bg-background cursor-pointer transition-all"
       />
     </div>
   );

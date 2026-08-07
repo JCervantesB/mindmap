@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { useCanvasStore, CanvasNode } from "@/store/canvas";
+import { useCanvasStore, CanvasNode, CanvasEdge } from "@/store/canvas";
 import { useDraftStore } from "@/store/drafts";
 import { useUIStore } from "@/store/ui";
 
@@ -238,6 +238,9 @@ export function useNodeDetail({ mapId }: UseNodeDetailOptions) {
         id: newNode.id,
         position: { x: Number(newNode.posX), y: Number(newNode.posY) },
         type: "mindMapNode",
+        width: 200,
+        height: 80,
+        style: { width: 200, height: 80 },
         data: {
           id: newNode.id,
           title: newNode.title,
@@ -248,14 +251,67 @@ export function useNodeDetail({ mapId }: UseNodeDetailOptions) {
           editorialStatus: newNode.editorialStatus,
           version: newNode.version,
           position: newNode.position,
+          nodeWidth: 200,
+          nodeHeight: 80,
           isCollapsed: newNode.isCollapsed,
           childCount: 0,
           parentNodeId: newNode.parentNodeId,
           onToggleCollapse: toggleNodeCollapse,
+          onResize: (nodeId, width, height) => {
+            const state = useCanvasStore.getState();
+            const node = state.nodes.find((n) => n.id === nodeId);
+            if (node) {
+              state.updateNode(nodeId, {
+                width,
+                height,
+                style: {
+                  ...node.style,
+                  width,
+                  height,
+                },
+                data: {
+                  ...node.data,
+                  nodeWidth: width,
+                  nodeHeight: height,
+                },
+              });
+            }
+            fetch(`/api/nodes/${nodeId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ width, height }),
+            }).catch((err) => console.error("Error guardando tamaño del nodo:", err));
+          },
         },
       };
 
       setNodes([...nodes, canvasNode]);
+
+      if (newNode.edge) {
+        const canvasEdge: CanvasEdge = {
+          id: newNode.edge.id,
+          source: newNode.edge.sourceNodeId,
+          target: newNode.edge.targetNodeId,
+          type: "mindMapEdge",
+          data: {
+            relationType: newNode.edge.relationType || "structural",
+            label: newNode.edge.label || undefined,
+          },
+        };
+        const state = useCanvasStore.getState();
+        state.setEdges([...state.edges, canvasEdge]);
+
+        const updatedParent = state.nodes.find((n) => n.id === selectedNode.id);
+        if (updatedParent) {
+          state.updateNode(selectedNode.id, {
+            data: {
+              ...updatedParent.data,
+              childCount: (updatedParent.data.childCount || 0) + 1,
+            },
+          });
+        }
+      }
+
       useCanvasStore.getState().setSelectedNodeId(newNode.id);
       addToast({ type: "success", message: "Nodo hijo creado" });
     } catch (error) {

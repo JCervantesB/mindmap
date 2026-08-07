@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import type { Node, Edge, Viewport } from 'reactflow';
 
 export type CanvasNode = Node & {
+  width?: number;
+  height?: number;
   data: {
     id: string;
     title: string;
@@ -14,8 +16,11 @@ export type CanvasNode = Node & {
     isCollapsed: boolean;
     childCount: number;
     position: number;
+    nodeWidth?: number;
+    nodeHeight?: number;
     parentNodeId?: string | null;
     onToggleCollapse?: (nodeId: string) => void;
+    onResize?: (nodeId: string, width: number, height: number) => void;
   };
 };
 

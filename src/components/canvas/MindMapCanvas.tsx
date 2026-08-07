@@ -143,6 +143,27 @@ function FlowCanvas({ mapId, onNodeSelect }: MindMapCanvasProps) {
 
   return (
     <div className="w-full h-full">
+      <style>{`
+        .react-flow__handle {
+          width: 20px;
+          height: 20px;
+          border-width: 3px;
+        }
+        .react-flow__handle-left {
+          left: -10px;
+        }
+        .react-flow__handle-right {
+          right: -10px;
+        }
+        .react-flow__handle:hover {
+          background-color: var(--primary);
+          transform: scale(1.2);
+        }
+        .react-flow__connection-line {
+          stroke: var(--primary);
+          stroke-width: 2;
+        }
+      `}</style>
       <ReactFlow
         nodes={localNodes}
         edges={localEdges}

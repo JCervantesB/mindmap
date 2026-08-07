@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Brain, ArrowLeft, Maximize2, Loader2, Plus, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MindMapCanvas } from "@/components/canvas/MindMapCanvas";
@@ -21,6 +21,41 @@ export default function MapEditorPage() {
   const [collaboratorDialogOpen, setCollaboratorDialogOpen] = useState(false);
   const lastSavedCollapsedRef = useRef<string[]>([]);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const resizeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleNodeResize = useCallback((nodeId: string, width: number, height: number) => {
+    const state = useCanvasStore.getState();
+    const node = state.nodes.find((n) => n.id === nodeId);
+    if (node) {
+      state.updateNode(nodeId, {
+        width,
+        height,
+        style: {
+          ...node.style,
+          width,
+          height,
+        },
+        data: {
+          ...node.data,
+          nodeWidth: width,
+          nodeHeight: height,
+        },
+      });
+    }
+
+    if (resizeTimeoutRef.current) {
+      clearTimeout(resizeTimeoutRef.current);
+    }
+    resizeTimeoutRef.current = setTimeout(() => {
+      fetch(`/api/nodes/${nodeId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ width, height }),
+      }).catch((error) => {
+        console.error("Error guardando tamaño del nodo:", error);
+      });
+    }, 500);
+  }, []);
 
   useEffect(() => {
     async function loadMap() {
@@ -73,26 +108,42 @@ export default function MapEditorPage() {
               isCollapsed: boolean;
               childCount: number;
               position: number;
-            }) => ({
-              id: node.id,
-              position: { x: node.posX, y: node.posY },
-              type: "mindMapNode",
-              data: {
+              width?: number | string | null;
+              height?: number | string | null;
+            }) => {
+              const nodeWidth = node.width != null ? Number(node.width) : 200;
+              const nodeHeight = node.height != null ? Number(node.height) : 80;
+
+              return {
                 id: node.id,
-                title: node.title,
-                nodeType: node.nodeType,
-                shortSummary: node.shortSummary,
-                contentMarkdown: node.contentMarkdown,
-                generationMode: node.generationMode,
-                editorialStatus: node.editorialStatus,
-                version: node.version,
-                position: node.position,
-                isCollapsed: savedCollapsedNodes.includes(node.id),
-                childCount: childCountMap.get(node.id) || 0,
-                parentNodeId: node.parentNodeId,
-                onToggleCollapse: toggleNodeCollapse,
-              },
-            }));
+                position: { x: node.posX, y: node.posY },
+                type: "mindMapNode",
+                width: nodeWidth,
+                height: nodeHeight,
+                style: {
+                  width: nodeWidth,
+                  height: nodeHeight,
+                },
+                data: {
+                  id: node.id,
+                  title: node.title,
+                  nodeType: node.nodeType,
+                  shortSummary: node.shortSummary,
+                  contentMarkdown: node.contentMarkdown,
+                  generationMode: node.generationMode,
+                  editorialStatus: node.editorialStatus,
+                  version: node.version,
+                  position: node.position,
+                  nodeWidth,
+                  nodeHeight,
+                  isCollapsed: savedCollapsedNodes.includes(node.id),
+                  childCount: childCountMap.get(node.id) || 0,
+                  parentNodeId: node.parentNodeId,
+                  onToggleCollapse: toggleNodeCollapse,
+                  onResize: handleNodeResize,
+                },
+              };
+            });
 
             if (savedCollapsedNodes.length > 0) {
               const childIds = new Set<string>();
@@ -249,6 +300,9 @@ export default function MapEditorPage() {
         id: newNode.id,
         position: { x: Number(newNode.posX), y: Number(newNode.posY) },
         type: "mindMapNode",
+        width: 200,
+        height: 80,
+        style: { width: 200, height: 80 },
         data: {
           id: newNode.id,
           title: newNode.title,
@@ -259,10 +313,13 @@ export default function MapEditorPage() {
           editorialStatus: newNode.editorialStatus,
           version: newNode.version,
           position: newNode.position,
+          nodeWidth: 200,
+          nodeHeight: 80,
           isCollapsed: newNode.isCollapsed,
           childCount: 0,
           parentNodeId: newNode.parentNodeId,
           onToggleCollapse: toggleNodeCollapse,
+          onResize: handleNodeResize,
         },
       };
 
@@ -307,8 +364,8 @@ export default function MapEditorPage() {
         </div>
       </header>
 
-      <div className="flex-1 flex bg-muted/30">
-        <div className="flex-1">
+      <div className="flex-1 flex min-h-0 bg-muted/30">
+        <div className="flex-1 min-w-0">
           {isLoading ? (
             <div className="flex h-full items-center justify-center">
               <div className="text-center">

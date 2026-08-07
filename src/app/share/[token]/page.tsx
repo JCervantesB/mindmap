@@ -261,8 +261,8 @@ export default function SharePage() {
           </span>
         </span>
       </header>
-      <div className="flex-1 flex">
-        <div className="flex-1">
+      <div className="flex-1 flex min-h-0">
+        <div className="flex-1 min-w-0">
           <MindMapCanvas mapId="" />
         </div>
         {selectedNode && (

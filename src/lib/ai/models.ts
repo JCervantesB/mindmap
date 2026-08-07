@@ -15,8 +15,8 @@ export const AI_MODELS = {
       contextWindow: 32000,
     },
     qwen: {
-      id: "qwen/qwen3.7-plus",
-      name: "Qwen 3.7 Plus",
+      id: "qwen/qwen3.7-flash",
+      name: "Qwen 3.7 Flash",
       provider: "Qwen",
       strengths: "Razonamiento complejo, multilingual",
       contextWindow: 1000000,
@@ -29,8 +29,8 @@ export const AI_MODELS = {
       contextWindow: 1000000,
     },
     deepseek: {
-      id: "deepseek/deepseek-v4-pro",
-      name: "DeepSeek V4 Pro",
+      id: "~deepseek/deepseek-v4-flash-latest",
+      name: "DeepSeek V4 Flash",
       provider: "DeepSeek",
       strengths: "Razonamiento largo, academico, finanzas, salud, marketing",
       contextWindow: 1005000,
@@ -67,8 +67,8 @@ export type ModelId = FreeModelId | PaidModelId;
 
 export const MODEL_PURPOSE = {
   interview: "gemma",
-  generation: "gemma",
-  expansion: "gemma",
+  generation: "deepseek",
+  expansion: "deepseek",
   research: "deepseek",
 } as const;
 

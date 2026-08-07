@@ -99,14 +99,17 @@ export function NodeDetailPanel({ mapId }: NodeDetailPanelProps) {
 
       <NodeHeader
         isEditing={isEditing}
+        isCreatingChild={isCreatingChild}
         onEdit={() => setIsEditing(true)}
         onCancelEdit={handleCancelEdit}
         onClose={handleClose}
+        onCreateChild={handleCreateChildNode}
       />
 
       <div className="flex-1 overflow-y-auto p-4">
         {isEditing ? (
           <NodeEditContent
+            nodeId={selectedNode.id}
             title={localTitle}
             shortSummary={localShortSummary}
             contentMarkdown={localContentMarkdown}

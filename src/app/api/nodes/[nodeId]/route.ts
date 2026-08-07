@@ -17,11 +17,7 @@ export async function PATCH(
 
     const { nodeId } = await params;
     const body = await request.json();
-    const { posX, posY } = body;
-
-    if (posX === undefined || posY === undefined) {
-      return NextResponse.json({ error: "posX y posY son requeridos" }, { status: 400 });
-    }
+    const { posX, posY, width, height } = body;
 
     const [node] = await db
       .select()
@@ -52,13 +48,19 @@ export async function PATCH(
 
     await requirePermission(node.mapId, user.id, "node.update");
 
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+    if (posX !== undefined) updates.posX = String(posX);
+    if (posY !== undefined) updates.posY = String(posY);
+    if (width !== undefined) updates.width = String(width);
+    if (height !== undefined) updates.height = String(height);
+
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: "No se proporcionaron campos para actualizar" }, { status: 400 });
+    }
+
     const [updatedNode] = await db
       .update(mapNodes)
-      .set({
-        posX: String(posX),
-        posY: String(posY),
-        updatedAt: new Date(),
-      })
+      .set(updates)
       .where(eq(mapNodes.id, nodeId))
       .returning();
 

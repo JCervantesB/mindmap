@@ -116,7 +116,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="p-8">
+    <div className="h-full overflow-y-auto p-8">
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Mis mapas</h1>

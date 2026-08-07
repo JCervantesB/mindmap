@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { MarkdownRichEditor } from "@/components/MarkdownRichEditor";
 
 const nodeTypes = [
   { value: "root", label: "Raíz" },
@@ -28,6 +29,7 @@ const editorialStatuses = [
 ];
 
 interface NodeEditContentProps {
+  nodeId: string;
   title: string;
   shortSummary: string;
   contentMarkdown: string;
@@ -44,6 +46,7 @@ interface NodeEditContentProps {
 }
 
 export function NodeEditContent({
+  nodeId,
   title,
   shortSummary,
   contentMarkdown,
@@ -126,12 +129,12 @@ export function NodeEditContent({
             </span>
           )}
         </div>
-        <Textarea
+        <MarkdownRichEditor
+          key={nodeId}
           value={contentMarkdown}
-          onChange={(e) => onContentChange(e.target.value)}
+          onChange={onContentChange}
           placeholder="Contenido en Markdown..."
-          rows={10}
-          className="resize-none font-mono text-sm"
+          minHeight={260}
         />
       </div>
     </div>

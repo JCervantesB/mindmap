@@ -132,6 +132,8 @@ export async function POST(
       })
       .returning();
 
+    let newEdge = null;
+
     if (parentNodeId) {
       await db
         .update(mapNodes)
@@ -140,9 +142,34 @@ export async function POST(
           updatedAt: new Date(),
         })
         .where(eq(mapNodes.id, parentNodeId));
+
+      const [existingEdge] = await db
+        .select()
+        .from(mapEdges)
+        .where(
+          and(
+            eq(mapEdges.mapId, mapId),
+            eq(mapEdges.sourceNodeId, parentNodeId),
+            eq(mapEdges.targetNodeId, newNode.id)
+          )
+        );
+
+      if (!existingEdge) {
+        [newEdge] = await db
+          .insert(mapEdges)
+          .values({
+            mapId,
+            sourceNodeId: parentNodeId,
+            targetNodeId: newNode.id,
+            relationType: "structural",
+            createdBy: user.id,
+            updatedBy: user.id,
+          })
+          .returning();
+      }
     }
 
-    return NextResponse.json(newNode, { status: 201 });
+    return NextResponse.json({ ...newNode, edge: newEdge }, { status: 201 });
   } catch (error) {
     console.error("Error creando nodo:", error);
     return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
