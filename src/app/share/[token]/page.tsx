@@ -12,6 +12,9 @@ import { useUIStore } from "@/store/ui";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+const cleanLegacyBreaks = (markdown: string) =>
+  markdown.replace(/<br\s*\/?>/gi, "\n");
+
 export default function SharePage() {
   const params = useParams();
   const token = params.token as string;
@@ -298,7 +301,7 @@ export default function SharePage() {
                 {selectedNode.data.contentMarkdown && (
                   <div className="prose prose-sm dark:prose-invert max-w-none">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {selectedNode.data.contentMarkdown}
+                      {cleanLegacyBreaks(selectedNode.data.contentMarkdown)}
                     </ReactMarkdown>
                   </div>
                 )}

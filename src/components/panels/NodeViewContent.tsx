@@ -7,6 +7,9 @@ import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import type { Components } from "react-markdown";
 
+const cleanLegacyBreaks = (markdown: string) =>
+  markdown.replace(/<br\s*\/?>/gi, "\n");
+
 const nodeTypes = [
   { value: "root", label: "Raíz" },
   { value: "concept", label: "Concepto" },
@@ -168,7 +171,7 @@ export function NodeViewContent({ node }: NodeViewContentProps) {
               remarkPlugins={[remarkGfm, remarkBreaks]}
               components={markdownComponents}
             >
-              {node.data.contentMarkdown}
+              {cleanLegacyBreaks(node.data.contentMarkdown)}
             </ReactMarkdown>
           </div>
         </div>

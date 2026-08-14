@@ -32,7 +32,43 @@ export function useNodeDetail({ mapId }: UseNodeDetailOptions) {
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const selectedNodeId = useCanvasStore.getState().selectedNodeId;
   const nodesRef = useRef(nodes);
-  nodesRef.current = nodes;
+  const selectedNodeRef = useRef(selectedNode);
+  const isSavingRef = useRef(isSaving);
+  const localStateRef = useRef({
+    title: "",
+    shortSummary: "",
+    contentMarkdown: "",
+    nodeType: "",
+    editorialStatus: "",
+  });
+
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
+
+  useEffect(() => {
+    selectedNodeRef.current = selectedNode;
+  }, [selectedNode]);
+
+  useEffect(() => {
+    isSavingRef.current = isSaving;
+  }, [isSaving]);
+
+  useEffect(() => {
+    localStateRef.current = {
+      title: localTitle,
+      shortSummary: localShortSummary,
+      contentMarkdown: localContentMarkdown,
+      nodeType: localNodeType,
+      editorialStatus: localEditorialStatus,
+    };
+  }, [
+    localTitle,
+    localShortSummary,
+    localContentMarkdown,
+    localNodeType,
+    localEditorialStatus,
+  ]);
 
   useEffect(() => {
     if (selectedNode) {
@@ -56,7 +92,7 @@ export function useNodeDetail({ mapId }: UseNodeDetailOptions) {
   }, [selectedNode, getDraft]);
 
   const triggerAutosave = useCallback(() => {
-    if (!selectedNode || isSaving) return;
+    if (!selectedNodeRef.current || isSavingRef.current) return;
 
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
@@ -64,16 +100,28 @@ export function useNodeDetail({ mapId }: UseNodeDetailOptions) {
 
     saveTimeoutRef.current = setTimeout(async () => {
       setIsSaving(true);
+      const node = selectedNodeRef.current;
+      const {
+        title,
+        shortSummary,
+        contentMarkdown,
+        nodeType,
+        editorialStatus,
+      } = localStateRef.current;
+      if (!node) {
+        setIsSaving(false);
+        return;
+      }
       try {
-        const response = await fetch(`/api/maps/${mapId}/nodes/${selectedNode.id}`, {
+        const response = await fetch(`/api/maps/${mapId}/nodes/${node.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            title: localTitle,
-            shortSummary: localShortSummary || null,
-            contentMarkdown: localContentMarkdown || null,
-            nodeType: localNodeType,
-            editorialStatus: localEditorialStatus,
+            title,
+            shortSummary: shortSummary || null,
+            contentMarkdown: contentMarkdown || null,
+            nodeType,
+            editorialStatus,
           }),
         });
 
@@ -83,7 +131,7 @@ export function useNodeDetail({ mapId }: UseNodeDetailOptions) {
 
         setNodes(
           nodesRef.current.map((n) =>
-            n.id === selectedNode.id
+            n.id === node.id
               ? {
                   ...n,
                   data: {
@@ -99,7 +147,7 @@ export function useNodeDetail({ mapId }: UseNodeDetailOptions) {
           )
         );
 
-        markSaved(selectedNode.id);
+        markSaved(node.id);
         setIsDirty(false);
         setLastSavedAt(new Date());
       } catch (error) {
@@ -108,10 +156,11 @@ export function useNodeDetail({ mapId }: UseNodeDetailOptions) {
         setIsSaving(false);
       }
     }, 15000);
-    }, [selectedNode, isSaving, localTitle, localShortSummary, localContentMarkdown, localNodeType, localEditorialStatus, mapId, setNodes, markSaved]);
+  }, [mapId, setNodes, markSaved]);
 
   const handleSave = useCallback(async () => {
-    if (!selectedNode || isSaving) return;
+    const node = selectedNodeRef.current;
+    if (!node || isSavingRef.current) return;
 
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
@@ -119,16 +168,23 @@ export function useNodeDetail({ mapId }: UseNodeDetailOptions) {
     }
 
     setIsSaving(true);
+    const {
+      title,
+      shortSummary,
+      contentMarkdown,
+      nodeType,
+      editorialStatus,
+    } = localStateRef.current;
     try {
-      const response = await fetch(`/api/maps/${mapId}/nodes/${selectedNode.id}`, {
+      const response = await fetch(`/api/maps/${mapId}/nodes/${node.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: localTitle,
-          shortSummary: localShortSummary || null,
-          contentMarkdown: localContentMarkdown || null,
-          nodeType: localNodeType,
-          editorialStatus: localEditorialStatus,
+          title,
+          shortSummary: shortSummary || null,
+          contentMarkdown: contentMarkdown || null,
+          nodeType,
+          editorialStatus,
         }),
       });
 
@@ -138,7 +194,7 @@ export function useNodeDetail({ mapId }: UseNodeDetailOptions) {
 
       setNodes(
         nodesRef.current.map((n) =>
-          n.id === selectedNode.id
+          n.id === node.id
             ? {
                 ...n,
                 data: {
@@ -154,7 +210,7 @@ export function useNodeDetail({ mapId }: UseNodeDetailOptions) {
         )
       );
 
-      markSaved(selectedNode.id);
+      markSaved(node.id);
       setIsDirty(false);
       setLastSavedAt(new Date());
       addToast({ type: "success", message: "Nodo guardado" });
@@ -164,7 +220,7 @@ export function useNodeDetail({ mapId }: UseNodeDetailOptions) {
     } finally {
       setIsSaving(false);
     }
-  }, [selectedNode, isSaving, localTitle, localShortSummary, localContentMarkdown, localNodeType, localEditorialStatus, mapId, setNodes, markSaved, addToast]);
+  }, [mapId, setNodes, markSaved, addToast]);
 
   const handleDelete = useCallback(async () => {
     if (!selectedNode) return;
