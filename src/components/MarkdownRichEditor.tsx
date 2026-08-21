@@ -18,6 +18,7 @@ import { Fragment, Node } from "@milkdown/kit/prose/model";
 import { commonmark, paragraphSchema } from "@milkdown/kit/preset/commonmark";
 import { gfm } from "@milkdown/kit/preset/gfm";
 import { history } from "@milkdown/plugin-history";
+import { upload, uploadConfig } from "@milkdown/plugin-upload";
 import { nord } from "@milkdown/theme-nord";
 import "@milkdown/theme-nord/style.css";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,7 @@ import {
   Redo2,
   FileCode2,
   FileText,
+  ImagePlus,
 } from "lucide-react";
 
 import {
@@ -52,6 +54,7 @@ import {
   wrapInBulletListCommand,
   wrapInOrderedListCommand,
   insertHrCommand,
+  insertImageCommand,
 } from "@milkdown/kit/preset/commonmark";
 import { toggleStrikethroughCommand } from "@milkdown/kit/preset/gfm";
 import { undoCommand, redoCommand } from "@milkdown/plugin-history";
@@ -145,9 +148,44 @@ function MarkdownRichEditorInner({
           }),
         ]);
       })
+      .config((ctx) => {
+        ctx.update(uploadConfig.key, (options) => ({
+          ...options,
+          enableHtmlFileUploader: true,
+          uploader: async (files, schema) => {
+            const nodes: Node[] = [];
+            for (let i = 0; i < files.length; i++) {
+              const file = files.item(i);
+              if (!file || !file.type.startsWith("image/")) continue;
+              try {
+                const formData = new FormData();
+                formData.append("file", file);
+                const response = await fetch("/api/uploads", {
+                  method: "POST",
+                  body: formData,
+                });
+                if (!response.ok) {
+                  throw new Error("Error subiendo imagen");
+                }
+                const data = await response.json();
+                const imageNode = schema.nodes.image?.createAndFill({
+                  src: data.url,
+                  alt: file.name || "imagen",
+                  title: file.name || undefined,
+                });
+                if (imageNode) nodes.push(imageNode);
+              } catch (e) {
+                console.error("Error subiendo imagen:", e);
+              }
+            }
+            return nodes;
+          },
+        }));
+      })
       .use([...commonmark, ...paragraphNoBr])
       .use(gfm)
-      .use(history);
+      .use(history)
+      .use(upload);
   }, []);
 
   useEffect(() => {
@@ -206,6 +244,61 @@ function MarkdownRichEditorInner({
       onChange(md);
     },
     [onChange]
+  );
+
+  const uploadRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const uploadImageToCloudinary = useCallback(async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await fetch("/api/uploads", {
+      method: "POST",
+      body: formData,
+    });
+    if (!response.ok) throw new Error("Error subiendo imagen");
+    return (await response.json()) as { url: string };
+  }, []);
+
+  const handleUploadImage = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (!file || !file.type.startsWith("image/")) return;
+
+      let data: { url: string } | null = null;
+      try {
+        data = await uploadImageToCloudinary(file);
+      } catch (err) {
+        console.error("Error subiendo imagen:", err);
+        return;
+      }
+      if (!data) return;
+
+      if (mode === "markdown") {
+        const textarea = textareaRef.current;
+        const start = textarea?.selectionStart ?? value.length;
+        const end = textarea?.selectionEnd ?? value.length;
+        const snippet = `![${file.name || "imagen"}](${data.url})`;
+        const md = value.slice(0, start) + snippet + value.slice(end);
+        lastEmittedRef.current = md;
+        onChange(md);
+        return;
+      }
+
+      const editor = get();
+      if (!editor) return;
+      editor.action((ctx) => {
+        ctx.get(commandsCtx).call(insertImageCommand.key, {
+          src: data.url,
+          alt: file.name || "imagen",
+        });
+        const view = ctx.get(editorViewCtx);
+        if (view) view.focus();
+        return true;
+      });
+    },
+    [get, mode, value, onChange, uploadImageToCloudinary]
   );
 
   return (
@@ -350,6 +443,23 @@ function MarkdownRichEditorInner({
         >
           <Minus className="h-4 w-4" />
         </Button>
+        <div className="mx-1 h-5 w-px bg-border" />
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 w-8 p-0"
+          onClick={() => uploadRef.current?.click()}
+          title="Subir imagen"
+        >
+          <ImagePlus className="h-4 w-4" />
+        </Button>
+        <input
+          ref={uploadRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleUploadImage}
+        />
         <div className="flex-1" />
         <Button
           variant="outline"
@@ -390,6 +500,7 @@ function MarkdownRichEditorInner({
         <Milkdown />
       ) : (
         <textarea
+          ref={textareaRef}
           value={value}
           onChange={handleMarkdownChange}
           placeholder={placeholder}

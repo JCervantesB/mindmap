@@ -11,9 +11,21 @@ import { useAuth } from "@clerk/nextjs";
 import { useUIStore } from "@/store/ui";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import type { Components } from "react-markdown";
 
 const cleanLegacyBreaks = (markdown: string) =>
   markdown.replace(/<br\s*\/?>/gi, "\n");
+
+const markdownComponents: Components = {
+  img: ({ src, alt }) => (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={alt || "imagen"}
+      className="my-4 max-w-full rounded-lg border border-border"
+    />
+  ),
+};
 
 export default function SharePage() {
   const params = useParams();
@@ -300,7 +312,7 @@ export default function SharePage() {
                 )}
                 {selectedNode.data.contentMarkdown && (
                   <div className="prose prose-sm dark:prose-invert max-w-none">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                       {cleanLegacyBreaks(selectedNode.data.contentMarkdown)}
                     </ReactMarkdown>
                   </div>

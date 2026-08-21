@@ -121,6 +121,14 @@ const markdownComponents: Components = {
   pre: ({ children }) => (
     <pre className="my-4 overflow-x-auto rounded-lg bg-muted p-4">{children}</pre>
   ),
+  img: ({ src, alt }) => (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={alt || "imagen"}
+      className="my-4 max-w-full rounded-lg border border-border"
+    />
+  ),
 };
 
 export function NodeViewContent({ node }: NodeViewContentProps) {
