@@ -76,7 +76,7 @@ export async function getUserRole(
       )
     );
 
-  return collaborator?.role as Role | null;
+  return (collaborator?.role as Role) ?? null;
 }
 
 export async function hasPermission(
@@ -97,12 +97,21 @@ export async function requirePermission(
 ): Promise<Role> {
   const role = await getUserRole(mapId, userId);
   if (!role) {
-    throw new Error("Acceso denegado");
+    throw new PermissionError("Acceso denegado");
   }
 
   if (!ROLE_PERMISSIONS[role].includes(permission)) {
-    throw new Error("Permiso insuficiente");
+    throw new PermissionError("Permiso insuficiente");
   }
 
   return role;
+}
+
+export class PermissionError extends Error {
+  status = 403;
+
+  constructor(message: string) {
+    super(message);
+    this.name = "PermissionError";
+  }
 }

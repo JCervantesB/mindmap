@@ -8,9 +8,11 @@ import {
   users,
   nodeSources,
   nodeRevisions,
+  comments,
 } from "@/lib/db/schema";
 import { eq, and, isNull, sql } from "drizzle-orm";
 import { requirePermission } from "@/lib/permissions";
+import { handleApiError } from "@/lib/errors";
 
 export async function PATCH(
   request: NextRequest,
@@ -140,7 +142,7 @@ export async function PATCH(
     return NextResponse.json(updatedNode);
   } catch (error) {
     console.error("Error actualizando nodo:", error);
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
+    return handleApiError(error);
   }
 }
 
@@ -203,6 +205,7 @@ export async function DELETE(
 
       await db.delete(nodeSources).where(eq(nodeSources.nodeId, nodeIdToDelete));
       await db.delete(nodeRevisions).where(eq(nodeRevisions.nodeId, nodeIdToDelete));
+      await db.delete(comments).where(eq(comments.nodeId, nodeIdToDelete));
       await db.delete(mapEdges).where(eq(mapEdges.sourceNodeId, nodeIdToDelete));
       await db.delete(mapEdges).where(eq(mapEdges.targetNodeId, nodeIdToDelete));
 
@@ -227,6 +230,6 @@ export async function DELETE(
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error eliminando nodo:", error);
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
+    return handleApiError(error);
   }
 }

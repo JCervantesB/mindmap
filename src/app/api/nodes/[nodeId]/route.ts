@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { mapNodes, mindMaps, users } from "@/lib/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { requirePermission } from "@/lib/permissions";
+import { handleApiError } from "@/lib/errors";
 
 export async function PATCH(
   request: NextRequest,
@@ -67,6 +68,6 @@ export async function PATCH(
     return NextResponse.json(updatedNode);
   } catch (error) {
     console.error("Error actualizando nodo:", error);
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
+    return handleApiError(error);
   }
 }

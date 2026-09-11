@@ -1,8 +1,12 @@
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
-import { streamText, UIMessage, TextUIPart } from 'ai';
+import { streamText, UIMessage } from 'ai';
+import { auth } from '@clerk/nextjs/server';
+import { z } from 'zod';
+import { getEnv } from '@/env';
+import { isRateLimited } from '@/lib/rate-limit';
 
 const openrouter = createOpenRouter({
-  apiKey: process.env.OPENROUTER_API_KEY,
+  apiKey: getEnv().OPENROUTER_API_KEY,
 });
 
 const INTERVIEW_SYSTEM_PROMPT = `
@@ -130,28 +134,73 @@ Nunca digas que eres un modelo de lenguaje.
 
 function extractTextFromParts(parts: Array<{ type: string; text?: string }>): string {
   return parts
-    .filter((part): part is TextUIPart => part.type === 'text' && !!part.text)
-    .map(part => part.text)
+    .filter((part) => part.type === 'text' && typeof part.text === 'string' && !!part.text)
+    .map((part) => part.text as string)
     .join('');
 }
 
 function convertToModelMessages(messages: UIMessage[]): { role: 'user' | 'assistant'; content: string }[] {
   return messages.map((message) => ({
-    role: message.role as 'user' | 'assistant',
+    role: message.role === 'assistant' ? 'assistant' : 'user',
     content: extractTextFromParts(message.parts as Array<{ type: string; text?: string }>),
   }));
 }
 
+const chatMessagesSchema = z.object({
+  messages: z
+    .array(
+      z.object({
+        role: z.enum(['user', 'assistant']),
+        parts: z.array(z.unknown()).max(50).default([]),
+      })
+    )
+    .max(50),
+});
+
 export async function POST(req: Request) {
-  const { messages }: { messages: UIMessage[] } = await req.json();
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return Response.json({ error: 'No autenticado' }, { status: 401 });
+    }
 
-  const modelMessages = convertToModelMessages(messages);
+    if (isRateLimited(`chat:${userId}`, 60, 60 * 60 * 1000)) {
+      return Response.json(
+        { error: 'Demasiadas solicitudes, inténtalo más tarde' },
+        { status: 429 }
+      );
+    }
 
-  const result = streamText({
-    model: openrouter.chat('xiaomi/mimo-v2.5'),
-    system: INTERVIEW_SYSTEM_PROMPT,
-    messages: modelMessages,
-  });
+    const body = await req.json().catch(() => null);
+    if (!body) {
+      return Response.json({ error: 'Cuerpo de solicitud inválido' }, { status: 400 });
+    }
 
-  return result.toUIMessageStreamResponse();
+    const parsed = chatMessagesSchema.safeParse(body);
+    if (!parsed.success) {
+      return Response.json({ error: 'Mensajes inválidos' }, { status: 400 });
+    }
+
+    const messages = (parsed.data.messages as unknown as UIMessage[]);
+    const totalLength = messages.reduce(
+      (acc, m) => acc + extractTextFromParts((m.parts as Array<{ type: string; text?: string }>) ?? []).length,
+      0
+    );
+    if (totalLength > 50000) {
+      return Response.json({ error: 'La conversación es demasiado larga' }, { status: 400 });
+    }
+
+    const modelMessages = convertToModelMessages(messages);
+
+    const result = streamText({
+      model: openrouter.chat('xiaomi/mimo-v2.5'),
+      system: INTERVIEW_SYSTEM_PROMPT,
+      messages: modelMessages,
+    });
+
+    return result.toUIMessageStreamResponse();
+  } catch (error) {
+    console.error('Error en /api/chat:', error);
+    return Response.json({ error: 'Error interno del servidor' }, { status: 500 });
+  }
 }

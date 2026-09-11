@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
-import { mapShareLinks, mindMaps, users } from "@/lib/db/schema";
+import { mapShareLinks, users } from "@/lib/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { requirePermission } from "@/lib/permissions";
+import { handleApiError } from "@/lib/errors";
 
 export async function GET(
   request: NextRequest,
@@ -36,10 +37,7 @@ export async function GET(
     return NextResponse.json(links);
   } catch (error) {
     console.error("Error listando links:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Error interno" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
@@ -95,10 +93,7 @@ export async function POST(
     });
   } catch (error) {
     console.error("Error creando link:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Error interno" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
@@ -132,7 +127,7 @@ export async function DELETE(
       return NextResponse.json({ error: "ID o token requerido" }, { status: 400 });
     }
 
-    let query = and(
+    const query = and(
       eq(mapShareLinks.mapId, mapId),
       linkId ? eq(mapShareLinks.id, linkId) : undefined,
       token ? eq(mapShareLinks.token, token) : undefined
@@ -146,9 +141,6 @@ export async function DELETE(
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error revocando link:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Error interno" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }

@@ -1,6 +1,10 @@
+import "server-only";
 import { z } from "zod";
 
 export const envSchema = z.object({
+  // Database (Neon PostgreSQL)
+  DATABASE_URL: z.string().optional(),
+
   // OpenRouter (AI)
   OPENROUTER_API_KEY: z.string().optional(),
   OPENROUTER_BASE_URL: z
@@ -10,6 +14,11 @@ export const envSchema = z.object({
   // Exa (Research)
   EXA_API_KEY: z.string().optional(),
   EXA_BASE_URL: z.string().default("https://api.exa.ai"),
+
+  // Cloudinary (Images)
+  CLOUDINARY_CLOUD_NAME: z.string().optional(),
+  CLOUDINARY_API_KEY: z.string().optional(),
+  CLOUDINARY_API_SECRET: z.string().optional(),
 
   // AI Models (Free tier - OpenRouter)
   DEFAULT_MODEL: z
@@ -42,10 +51,14 @@ export function getEnv(): Env {
 
   try {
     env = envSchema.parse({
+      DATABASE_URL: process.env.DATABASE_URL,
       OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
       OPENROUTER_BASE_URL: process.env.OPENROUTER_BASE_URL,
       EXA_API_KEY: process.env.EXA_API_KEY,
       EXA_BASE_URL: process.env.EXA_BASE_URL,
+      CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME,
+      CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY,
+      CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET,
       DEFAULT_MODEL: process.env.DEFAULT_MODEL,
       MODEL_GENERATION: process.env.MODEL_GENERATION,
       MODEL_INTERVIEW: process.env.MODEL_INTERVIEW,

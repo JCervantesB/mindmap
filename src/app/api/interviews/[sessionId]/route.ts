@@ -20,6 +20,15 @@ export async function GET(
 
     const { sessionId } = await params;
 
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.clerkUserId, userId));
+
+    if (!user) {
+      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
+    }
+
     const [session] = await db
       .select()
       .from(interviewSessions)
@@ -27,6 +36,10 @@ export async function GET(
 
     if (!session) {
       return NextResponse.json({ error: "Sesión no encontrada" }, { status: 404 });
+    }
+
+    if (session.ownerId !== user.id) {
+      return NextResponse.json({ error: "No tienes permiso" }, { status: 403 });
     }
 
     return NextResponse.json(session);
@@ -49,6 +62,15 @@ export async function PATCH(
     const { sessionId } = await params;
     const body = await request.json();
 
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.clerkUserId, userId));
+
+    if (!user) {
+      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
+    }
+
     const [session] = await db
       .select()
       .from(interviewSessions)
@@ -56,6 +78,10 @@ export async function PATCH(
 
     if (!session) {
       return NextResponse.json({ error: "Sesión no encontrada" }, { status: 404 });
+    }
+
+    if (session.ownerId !== user.id) {
+      return NextResponse.json({ error: "No tienes permiso" }, { status: 403 });
     }
 
     const updates: Record<string, unknown> = {};
@@ -101,6 +127,15 @@ export async function POST(
 
     const { sessionId } = await params;
 
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.clerkUserId, userId));
+
+    if (!user) {
+      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
+    }
+
     const [session] = await db
       .select()
       .from(interviewSessions)
@@ -110,20 +145,15 @@ export async function POST(
       return NextResponse.json({ error: "Sesión no encontrada" }, { status: 404 });
     }
 
+    if (session.ownerId !== user.id) {
+      return NextResponse.json({ error: "No tienes permiso" }, { status: 403 });
+    }
+
     if (!session.topic || !session.objective) {
       return NextResponse.json(
         { error: "La sesión no tiene suficiente información para materializarse" },
         { status: 400 }
       );
-    }
-
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.clerkUserId, userId));
-
-    if (!user) {
-      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
     }
 
     const brief: InterviewBrief = {

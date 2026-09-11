@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { mapEdges, mindMaps, users } from "@/lib/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { requirePermission } from "@/lib/permissions";
+import { handleApiError } from "@/lib/errors";
 
 export async function DELETE(
   request: NextRequest,
@@ -51,6 +52,6 @@ export async function DELETE(
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error eliminando arista:", error);
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
+    return handleApiError(error);
   }
 }

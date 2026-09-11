@@ -3,6 +3,7 @@ import { auth, clerkClient } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { mapShareLinks, mindMaps, users, collaborationRequests, notifications } from "@/lib/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
+import { handleApiError } from "@/lib/errors";
 
 async function ensureUserExists(clerkUserId: string) {
   const [existing] = await db
@@ -41,14 +42,12 @@ export async function POST(
 ) {
   try {
     const { userId } = await auth();
-    console.log("[REQUEST COLLAB] auth().userId:", userId);
 
     if (!userId) {
       return NextResponse.json({ error: "No autenticado" }, { status: 401 });
     }
 
     const { token } = await params;
-    console.log("[REQUEST COLLAB] token:", token);
 
     const [shareLink] = await db
       .select()
@@ -83,7 +82,6 @@ export async function POST(
     }
 
     const user = await ensureUserExists(userId);
-    console.log("[REQUEST COLLAB] Found/created user:", user.id, user.email);
 
     if (map.ownerId === user.id) {
       return NextResponse.json({ error: "Eres el propietario" }, { status: 400 });
@@ -132,6 +130,6 @@ export async function POST(
     return NextResponse.json({ success: true, request: newRequest });
   } catch (error) {
     console.error("Error requesting collaboration:", error);
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Error interno" }, { status: 500 });
+    return handleApiError(error);
   }
 }

@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { mapCollaborators, mindMaps, users } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { requirePermission } from "@/lib/permissions";
+import { handleApiError } from "@/lib/errors";
 
 export async function GET(
   request: NextRequest,
@@ -65,10 +66,7 @@ export async function GET(
     });
   } catch (error) {
     console.error("Error listando colaboradores:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Error interno" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
@@ -166,10 +164,7 @@ export async function POST(
     });
   } catch (error) {
     console.error("Error agregando colaborador:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Error interno" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
@@ -203,7 +198,7 @@ export async function DELETE(
       return NextResponse.json({ error: "ID requerido" }, { status: 400 });
     }
 
-    let query = and(
+    const query = and(
       eq(mapCollaborators.mapId, mapId),
       collaboratorId ? eq(mapCollaborators.id, collaboratorId) : undefined,
       targetUserId ? eq(mapCollaborators.userId, targetUserId) : undefined
@@ -214,9 +209,6 @@ export async function DELETE(
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error eliminando colaborador:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Error interno" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }

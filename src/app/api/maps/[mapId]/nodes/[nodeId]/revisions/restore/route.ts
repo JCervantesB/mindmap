@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { mapNodes, mindMaps, users, nodeRevisions } from "@/lib/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { requirePermission } from "@/lib/permissions";
+import { handleApiError } from "@/lib/errors";
 
 export async function POST(
   request: NextRequest,
@@ -90,6 +91,6 @@ export async function POST(
     return NextResponse.json(updatedNode);
   } catch (error) {
     console.error("Error restaurando revisión:", error);
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
+    return handleApiError(error);
   }
 }

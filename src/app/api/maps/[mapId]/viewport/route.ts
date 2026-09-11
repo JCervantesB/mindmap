@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { mapViews, mindMaps, users } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { requirePermission } from "@/lib/permissions";
+import { handleApiError } from "@/lib/errors";
 
 export async function GET(
   request: NextRequest,
@@ -35,6 +36,8 @@ export async function GET(
       return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
     }
 
+    await requirePermission(mapId, user.id, "map.read");
+
     const [view] = await db
       .select()
       .from(mapViews)
@@ -61,7 +64,7 @@ export async function GET(
     });
   } catch (error) {
     console.error("Error obteniendo viewport:", error);
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
+    return handleApiError(error);
   }
 }
 
@@ -134,6 +137,6 @@ export async function PUT(
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error guardando viewport:", error);
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
+    return handleApiError(error);
   }
 }

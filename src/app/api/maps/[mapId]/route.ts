@@ -15,9 +15,70 @@ import {
   nodeSources,
   nodeRevisions,
   domainEvents,
+  comments,
 } from "@/lib/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { requirePermission } from "@/lib/permissions";
+import { handleApiError } from "@/lib/errors";
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ mapId: string }> }
+) {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+    }
+
+    const { mapId } = await params;
+
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.clerkUserId, userId));
+
+    if (!user) {
+      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
+    }
+
+    await requirePermission(mapId, user.id, "map.update");
+
+    const body = await request.json();
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+
+    if (body.title !== undefined) {
+      if (typeof body.title !== "string" || !body.title.trim()) {
+        return NextResponse.json({ error: "El título no puede estar vacío" }, { status: 400 });
+      }
+      updates.title = body.title.trim();
+    }
+    if (body.description !== undefined) {
+      updates.description = body.description === "" ? null : body.description;
+    }
+    if (body.rootTopic !== undefined) {
+      updates.rootTopic = body.rootTopic;
+    }
+
+    if (Object.keys(updates).length === 1) {
+      return NextResponse.json(
+        { error: "No se proporcionaron campos para actualizar" },
+        { status: 400 }
+      );
+    }
+
+    const [updated] = await db
+      .update(mindMaps)
+      .set(updates)
+      .where(eq(mindMaps.id, mapId))
+      .returning();
+
+    return NextResponse.json(updated);
+  } catch (error) {
+    console.error("Error actualizando mapa:", error);
+    return handleApiError(error);
+  }
+}
 
 export async function GET(
   request: NextRequest,
@@ -72,7 +133,7 @@ export async function GET(
     });
   } catch (error) {
     console.error("Error obteniendo mapa:", error);
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
+    return handleApiError(error);
   }
 }
 
@@ -120,7 +181,10 @@ export async function DELETE(
     for (const nodeId of nodeIds) {
       await db.delete(nodeSources).where(eq(nodeSources.nodeId, nodeId));
       await db.delete(nodeRevisions).where(eq(nodeRevisions.nodeId, nodeId));
+      await db.delete(comments).where(eq(comments.nodeId, nodeId));
     }
+
+    await db.delete(comments).where(eq(comments.mapId, mapId));
 
     await db.delete(researchTasks).where(eq(researchTasks.mapId, mapId));
     await db.delete(generationTasks).where(eq(generationTasks.mapId, mapId));
@@ -142,6 +206,6 @@ export async function DELETE(
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error eliminando mapa:", error);
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
+    return handleApiError(error);
   }
 }

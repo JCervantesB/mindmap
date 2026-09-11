@@ -1,9 +1,10 @@
 import { create } from 'zustand';
+import { toast } from 'sonner';
 
 interface UIState {
   sidebarOpen: boolean;
   detailPanelOpen: boolean;
-  detailPanelTab: 'content' | 'sources' | 'history';
+  detailPanelTab: 'content' | 'sources' | 'history' | 'comments';
   detailPanelWidth: number;
   activeModal: string | null;
   toasts: Array<{
@@ -18,7 +19,7 @@ interface UIState {
   setSidebarOpen: (open: boolean) => void;
   toggleDetailPanel: () => void;
   setDetailPanelOpen: (open: boolean) => void;
-  setDetailPanelTab: (tab: 'content' | 'sources' | 'history') => void;
+  setDetailPanelTab: (tab: 'content' | 'sources' | 'history' | 'comments') => void;
   setDetailPanelWidth: (width: number) => void;
   openModal: (modalId: string) => void;
   closeModal: () => void;
@@ -52,9 +53,22 @@ export const useUIStore = create<UIState>((set) => ({
   openModal: (modalId) => set({ activeModal: modalId }),
   closeModal: () => set({ activeModal: null }),
 
-  addToast: (toast) => set((state) => ({
-    toasts: [...state.toasts, { ...toast, id: crypto.randomUUID() }],
-  })),
+  addToast: (toastData) => {
+    switch (toastData.type) {
+      case 'success':
+        toast.success(toastData.message);
+        break;
+      case 'error':
+        toast.error(toastData.message);
+        break;
+      case 'warning':
+        toast.warning(toastData.message);
+        break;
+      default:
+        toast(toastData.message);
+    }
+    return set(() => ({ toasts: [] }));
+  },
 
   removeToast: (id) => set((state) => ({
     toasts: state.toasts.filter((t) => t.id !== id),

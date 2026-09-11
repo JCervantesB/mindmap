@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { mapNodes, mindMaps, users, nodeRevisions } from "@/lib/db/schema";
 import { eq, and, isNull, desc } from "drizzle-orm";
 import { requirePermission } from "@/lib/permissions";
+import { handleApiError } from "@/lib/errors";
 
 export async function GET(
   request: NextRequest,
@@ -55,6 +56,6 @@ export async function GET(
     return NextResponse.json(revisions);
   } catch (error) {
     console.error("Error listando revisiones:", error);
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
+    return handleApiError(error);
   }
 }

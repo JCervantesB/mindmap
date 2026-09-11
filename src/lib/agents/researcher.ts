@@ -2,6 +2,7 @@ import { Exa } from "exa-js";
 import { generateText, Output } from "ai";
 import { openrouter } from "@/lib/ai";
 import { getModelForPurpose } from "@/lib/ai/models";
+import { getEnv } from "@/env";
 import {
   type ResearchContext,
   type ResearchResult,
@@ -9,7 +10,7 @@ import {
   researchSummarySchema,
 } from "./schemas";
 
-const exa = new Exa(process.env.EXA_API_KEY || "");
+const exa = new Exa(getEnv().EXA_API_KEY || "");
 
 function buildResearchQuery(context: ResearchContext): string {
   const parts = [

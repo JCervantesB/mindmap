@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { mapNodes, mapEdges, mindMaps, users } from "@/lib/db/schema";
 import { eq, and, isNull, sql, asc } from "drizzle-orm";
 import { requirePermission } from "@/lib/permissions";
+import { handleApiError } from "@/lib/errors";
 
 export async function GET(
   request: NextRequest,
@@ -46,7 +47,7 @@ export async function GET(
     return NextResponse.json({ nodes });
   } catch (error) {
     console.error("Error obteniendo nodos:", error);
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
+    return handleApiError(error);
   }
 }
 
@@ -172,6 +173,6 @@ export async function POST(
     return NextResponse.json({ ...newNode, edge: newEdge }, { status: 201 });
   } catch (error) {
     console.error("Error creando nodo:", error);
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
+    return handleApiError(error);
   }
 }

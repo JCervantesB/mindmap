@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { mapEdges, mindMaps, users } from "@/lib/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { requirePermission } from "@/lib/permissions";
+import { handleApiError } from "@/lib/errors";
 
 export async function GET(
   request: NextRequest,
@@ -45,7 +46,7 @@ export async function GET(
     return NextResponse.json({ edges });
   } catch (error) {
     console.error("Error obteniendo aristas:", error);
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
+    return handleApiError(error);
   }
 }
 
@@ -107,6 +108,6 @@ export async function POST(
     return NextResponse.json(newEdge, { status: 201 });
   } catch (error) {
     console.error("Error creando arista:", error);
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
+    return handleApiError(error);
   }
 }
