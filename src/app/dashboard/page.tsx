@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { Plus, Map, MoreHorizontal, Trash2, Copy, Share2, Loader2, Sparkles } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Plus, Map, MoreHorizontal, Trash2, Copy, Share2, Loader2, Sparkles, Search, LayoutTemplate } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -19,10 +19,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import {
   BlankMapDialog,
 } from "@/components/dashboard/BlankMapDialog";
+import { UsageCard } from "@/components/dashboard/UsageCard";
+import { TemplateDialog } from "@/components/dashboard/TemplateDialog";
 
 interface MapItem {
   id: string;
@@ -49,7 +52,43 @@ export default function DashboardPage() {
   const [maps, setMaps] = useState<MapItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isBlankMapOpen, setIsBlankMapOpen] = useState(false);
+  const [isTemplateOpen, setIsTemplateOpen] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [searchInput, setSearchInput] = useState(searchParams.get("q") ?? "");
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const q = searchParams.get("q") ?? "";
+
+  useEffect(() => {
+    const openBlank = () => setIsBlankMapOpen(true);
+    window.addEventListener("open-blank-map", openBlank);
+    return () => window.removeEventListener("open-blank-map", openBlank);
+  }, []);
+
+  useEffect(() => {
+    const syncSearch = (e: Event) => {
+      const detail = (e as CustomEvent<string>).detail ?? "";
+      setSearchInput(detail);
+    };
+    window.addEventListener("dashboard-search", syncSearch);
+    return () => window.removeEventListener("dashboard-search", syncSearch);
+  }, []);
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchInput(value);
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    searchTimeoutRef.current = setTimeout(() => {
+      router.replace(
+        value.trim()
+          ? `/dashboard?q=${encodeURIComponent(value.trim())}`
+          : "/dashboard"
+      );
+    }, 350);
+  }, [router]);
+
+  useEffect(() => () => {
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+  }, []);
 
   const syncUser = useCallback(async () => {
     try {
@@ -59,9 +98,10 @@ export default function DashboardPage() {
     }
   }, []);
 
-  const fetchMaps = useCallback(async () => {
+  const fetchMaps = useCallback(async (query = "") => {
     try {
-      const response = await fetch("/api/maps");
+      const url = query ? `/api/maps?q=${encodeURIComponent(query)}` : "/api/maps";
+      const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
         setMaps(data);
@@ -76,10 +116,10 @@ export default function DashboardPage() {
   useEffect(() => {
     async function init() {
       await syncUser();
-      await fetchMaps();
+      await fetchMaps(q);
     }
     init();
-  }, [syncUser, fetchMaps]);
+  }, [syncUser, fetchMaps, q]);
 
   const handleCreateMap = async (result: { sessionId: string; mapId?: string }) => {
     if (result.mapId) {
@@ -88,6 +128,23 @@ export default function DashboardPage() {
     } else {
       toast.error("Error", { description: "No se pudo crear el mapa" });
       fetchMaps();
+    }
+  };
+
+  const handleDuplicateMap = async (e: React.MouseEvent, mapId: string) => {
+    e.stopPropagation();
+
+    try {
+      const response = await fetch(`/api/maps/${mapId}/duplicate`, { method: "POST" });
+      const data = await response.json().catch(() => null);
+      if (response.ok && data?.id) {
+        toast.success("Mapa duplicado");
+        router.push(`/dashboard/${data.id}`);
+      } else {
+        toast.error("Error", { description: data?.error || "No se pudo duplicar" });
+      }
+    } catch (error) {
+      toast.error("Error de conexión");
     }
   };
 
@@ -125,6 +182,23 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Buscar mapas..."
+              value={searchInput}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              className="w-56 pl-9"
+            />
+          </div>
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={() => setIsTemplateOpen(true)}
+          >
+            <LayoutTemplate className="h-4 w-4" />
+            Plantilla
+          </Button>
           <Button
             variant="outline"
             className="gap-2"
@@ -135,6 +209,8 @@ export default function DashboardPage() {
           </Button>
         </div>
       </div>
+
+      <UsageCard />
 
       {isLoading ? (
         <div className="flex justify-center py-24">
@@ -183,13 +259,13 @@ export default function DashboardPage() {
                         <span className="sr-only">Abrir menú</span>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem disabled>
+                        <DropdownMenuItem onClick={(e) => handleDuplicateMap(e, map.id)}>
                           <Copy className="mr-2 h-4 w-4" />
                           Duplicar
                         </DropdownMenuItem>
-                        <DropdownMenuItem disabled>
+                        <DropdownMenuItem onClick={(e) => handleOpenMap(map.id)}>
                           <Share2 className="mr-2 h-4 w-4" />
-                          Compartir
+                          Abrir
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
@@ -244,6 +320,10 @@ export default function DashboardPage() {
       <BlankMapDialog
         open={isBlankMapOpen}
         onOpenChange={setIsBlankMapOpen}
+      />
+      <TemplateDialog
+        open={isTemplateOpen}
+        onOpenChange={setIsTemplateOpen}
       />
     </div>
   );

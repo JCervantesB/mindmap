@@ -31,6 +31,12 @@ export type CanvasEdge = Edge & {
   };
 };
 
+interface CanvasSnapshot {
+  nodes: CanvasNode[];
+  edges: CanvasEdge[];
+  collapsedNodes: string[];
+}
+
 interface CanvasState {
   nodes: CanvasNode[];
   edges: CanvasEdge[];
@@ -41,6 +47,8 @@ interface CanvasState {
   isConnecting: boolean;
   minimapOpen: boolean;
   collapsedNodes: string[];
+  past: CanvasSnapshot[];
+  future: CanvasSnapshot[];
 
   setNodes: (nodes: CanvasNode[]) => void;
   setEdges: (edges: CanvasEdge[]) => void;
@@ -59,6 +67,20 @@ interface CanvasState {
   toggleNodeCollapse: (nodeId: string) => void;
   setCollapsedNodes: (collapsedNodes: string[]) => void;
   resetCanvas: () => void;
+  undo: () => void;
+  redo: () => void;
+}
+
+function captureSnapshot(state: CanvasState): CanvasSnapshot {
+  return {
+    nodes: state.nodes,
+    edges: state.edges,
+    collapsedNodes: state.collapsedNodes,
+  };
+}
+
+function sameSnapshot(a: CanvasSnapshot, b: CanvasSnapshot): boolean {
+  return a.nodes === b.nodes && a.edges === b.edges && a.collapsedNodes === b.collapsedNodes;
 }
 
 export const useCanvasStore = create<CanvasState>((set, get) => ({
@@ -71,13 +93,22 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   isConnecting: false,
   minimapOpen: true,
   collapsedNodes: [],
+  past: [],
+  future: [],
 
   setNodes: (nodes) => set({ nodes }),
   setEdges: (edges) => set({ edges }),
 
-  addNode: (node) => set((state) => ({
-    nodes: [...state.nodes, node],
-  })),
+  addNode: (node) => set((state) => {
+    const snapshot = captureSnapshot(state);
+    return {
+      nodes: [...state.nodes, node],
+      past: sameSnapshot(state.past[state.past.length - 1], snapshot)
+        ? state.past
+        : [...state.past.slice(-49), snapshot],
+      future: [],
+    };
+  }),
 
   updateNode: (nodeId, updates) => set((state) => ({
     nodes: state.nodes.map((node) =>
@@ -85,33 +116,71 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     ),
   })),
 
-  removeNode: (nodeId) => set((state) => ({
-    nodes: state.nodes.filter((node) => node.id !== nodeId),
-    edges: state.edges.filter(
-      (edge) => edge.source !== nodeId && edge.target !== nodeId
-    ),
-    selectedNodeId: state.selectedNodeId === nodeId ? null : state.selectedNodeId,
-  })),
+  removeNode: (nodeId) => set((state) => {
+    const snapshot = captureSnapshot(state);
+    return {
+      nodes: state.nodes.filter((node) => node.id !== nodeId),
+      edges: state.edges.filter(
+        (edge) => edge.source !== nodeId && edge.target !== nodeId
+      ),
+      selectedNodeId: state.selectedNodeId === nodeId ? null : state.selectedNodeId,
+      past: sameSnapshot(state.past[state.past.length - 1], snapshot)
+        ? state.past
+        : [...state.past.slice(-49), snapshot],
+      future: [],
+    };
+  }),
 
-  addEdge: (edge) => set((state) => ({
-    edges: [...state.edges, edge],
-  })),
+  addEdge: (edge) => set((state) => {
+    const snapshot = captureSnapshot(state);
+    return {
+      edges: [...state.edges, edge],
+      past: sameSnapshot(state.past[state.past.length - 1], snapshot)
+        ? state.past
+        : [...state.past.slice(-49), snapshot],
+      future: [],
+    };
+  }),
 
-  removeEdge: (edgeId) => set((state) => ({
-    edges: state.edges.filter((edge) => edge.id !== edgeId),
-    selectedEdgeId: state.selectedEdgeId === edgeId ? null : state.selectedEdgeId,
-  })),
+  removeEdge: (edgeId) => set((state) => {
+    const snapshot = captureSnapshot(state);
+    return {
+      edges: state.edges.filter((edge) => edge.id !== edgeId),
+      selectedEdgeId: state.selectedEdgeId === edgeId ? null : state.selectedEdgeId,
+      past: sameSnapshot(state.past[state.past.length - 1], snapshot)
+        ? state.past
+        : [...state.past.slice(-49), snapshot],
+      future: [],
+    };
+  }),
 
-  removeEdgesForNodes: (nodeIds) => set((state) => ({
-    edges: state.edges.filter(
-      (edge) => !nodeIds.includes(edge.source) && !nodeIds.includes(edge.target)
-    ),
-  })),
+  removeEdgesForNodes: (nodeIds) => set((state) => {
+    const snapshot = captureSnapshot(state);
+    return {
+      edges: state.edges.filter(
+        (edge) => !nodeIds.includes(edge.source) && !nodeIds.includes(edge.target)
+      ),
+      past: sameSnapshot(state.past[state.past.length - 1], snapshot)
+        ? state.past
+        : [...state.past.slice(-49), snapshot],
+      future: [],
+    };
+  }),
 
   setViewport: (viewport) => set({ viewport }),
   setSelectedNodeId: (selectedNodeId) => set({ selectedNodeId, selectedEdgeId: null }),
   setSelectedEdgeId: (selectedEdgeId) => set({ selectedEdgeId, selectedNodeId: null }),
-  setIsDragging: (isDragging) => set({ isDragging }),
+  setIsDragging: (isDragging) => set((state) => {
+    if (!isDragging) return { isDragging };
+    const snapshot = captureSnapshot(state);
+    return {
+      isDragging,
+      past: sameSnapshot(state.past[state.past.length - 1], snapshot)
+        ? state.past
+        : [...state.past.slice(-49), snapshot],
+      future: [],
+    };
+  }),
   setIsConnecting: (isConnecting) => set({ isConnecting }),
   toggleMinimap: () => set((state) => ({ minimapOpen: !state.minimapOpen })),
 
@@ -138,7 +207,11 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     };
     findChildren(nodeId);
 
-    set({
+    set((prev) => ({
+      past: sameSnapshot(prev.past[prev.past.length - 1], captureSnapshot(prev))
+        ? prev.past
+        : [...prev.past.slice(-49), captureSnapshot(prev)],
+      future: [],
       collapsedNodes: newCollapsedNodes,
       nodes: state.nodes.map((n) => {
         if (n.id === nodeId) {
@@ -159,7 +232,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         ...e,
         hidden: childIds.has(e.source) || childIds.has(e.target) ? !isCurrentlyCollapsed : e.hidden,
       })),
-    });
+    }));
   },
 
   resetCanvas: () => set({
@@ -169,5 +242,31 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     selectedNodeId: null,
     selectedEdgeId: null,
     collapsedNodes: [],
+    past: [],
+    future: [],
+  }),
+
+  undo: () => set((state) => {
+    const snapshot = state.past[state.past.length - 1];
+    if (!snapshot) return state;
+    return {
+      nodes: snapshot.nodes,
+      edges: snapshot.edges,
+      collapsedNodes: snapshot.collapsedNodes,
+      past: state.past.slice(0, -1),
+      future: [...state.future, captureSnapshot(state)],
+    };
+  }),
+
+  redo: () => set((state) => {
+    const snapshot = state.future[state.future.length - 1];
+    if (!snapshot) return state;
+    return {
+      nodes: snapshot.nodes,
+      edges: snapshot.edges,
+      collapsedNodes: snapshot.collapsedNodes,
+      future: state.future.slice(0, -1),
+      past: [...state.past, captureSnapshot(state)],
+    };
   }),
 }));

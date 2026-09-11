@@ -10,6 +10,7 @@ import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { InterviewHistorySidebar } from "@/components/dashboard/InterviewHistorySidebar";
 import { InterviewDialog } from "@/components/interview/InterviewDialog";
 import { NotificationsDialog } from "@/components/NotificationsDialog";
+import { CommandPalette } from "@/components/dashboard/CommandPalette";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -29,6 +30,15 @@ export default function DashboardLayout({
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarSearch, setSidebarSearch] = useState("");
+
+  const handleSidebarSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const query = sidebarSearch.trim();
+    window.dispatchEvent(new CustomEvent("dashboard-search", { detail: query }));
+    router.push(query ? `/dashboard?q=${encodeURIComponent(query)}` : "/dashboard");
+    setSidebarSearch("");
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -124,13 +134,15 @@ export default function DashboardLayout({
 
               {/* Search */}
               <div>
-                <div className="relative">
+                <form onSubmit={handleSidebarSearch} className="relative">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     placeholder="Buscar mapas..."
                     className="pl-9"
+                    value={sidebarSearch}
+                    onChange={(e) => setSidebarSearch(e.target.value)}
                   />
-                </div>
+                </form>
               </div>
 
               {/* Interview History */}
@@ -240,6 +252,9 @@ export default function DashboardLayout({
         open={notificationsOpen}
         onOpenChange={setNotificationsOpen}
       />
+
+      {/* Command Palette (⌘K) */}
+      <CommandPalette onNewInterview={handleNewInterview} />
     </div>
   );
 }

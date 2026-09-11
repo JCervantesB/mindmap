@@ -2,8 +2,15 @@
 
 import { useParams } from "next/navigation";
 import { useEffect, useState, useRef, useCallback } from "react";
-import { Brain, ArrowLeft, Maximize2, Loader2, Plus, Users } from "lucide-react";
+import { Brain, ArrowLeft, Maximize2, Loader2, Plus, Users, Pencil, Check, X, Undo2, Redo2, Download, FileText, Image as ImageIcon, FileJson } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { MindMapCanvas } from "@/components/canvas/MindMapCanvas";
 import { NodeDetailPanel } from "@/components/panels/NodeDetailPanel";
 import { CollaboratorDialog } from "@/components/CollaboratorDialog";
@@ -15,10 +22,13 @@ export default function MapEditorPage() {
   const params = useParams();
   const mapId = params.mapId as string;
   const [isLoading, setIsLoading] = useState(true);
-  const { setNodes, setEdges, setViewport, setCollapsedNodes, toggleNodeCollapse, selectedNodeId, nodes, viewport, collapsedNodes } = useCanvasStore();
+  const { setNodes, setEdges, setViewport, setCollapsedNodes, toggleNodeCollapse, selectedNodeId, nodes, viewport, collapsedNodes, undo, redo } = useCanvasStore();
   const { setDetailPanelOpen, detailPanelOpen, addToast } = useUIStore();
   const [isCreatingNode, setIsCreatingNode] = useState(false);
   const [collaboratorDialogOpen, setCollaboratorDialogOpen] = useState(false);
+  const [mapTitle, setMapTitle] = useState("Mapa");
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
   const lastSavedCollapsedRef = useRef<string[]>([]);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const resizeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -82,6 +92,7 @@ export default function MapEditorPage() {
 
         if (mapResponse.ok) {
           const data = await mapResponse.json();
+          setMapTitle(data.title || "Mapa");
           let canvasNodes: CanvasNode[] = [];
 
           if (data.nodes) {
@@ -334,9 +345,71 @@ export default function MapEditorPage() {
     }
   };
 
+  const handleRename = async () => {
+    const title = renameValue.trim();
+    if (!title || title === mapTitle) {
+      setIsRenaming(false);
+      return;
+    }
+    try {
+      const response = await fetch(`/api/maps/${mapId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title }),
+      });
+      if (response.ok) {
+        setMapTitle(title);
+        addToast({ type: "success", message: "Mapa renombrado" });
+      } else {
+        addToast({ type: "error", message: "No se pudo renombrar el mapa" });
+      }
+    } catch (error) {
+      console.error("Error renombrando mapa:", error);
+      addToast({ type: "error", message: "Error al renombrar el mapa" });
+    } finally {
+      setIsRenaming(false);
+    }
+  };
+
+  const handleToggleFullscreen = () => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    } else {
+      document.documentElement.requestFullscreen().catch(() => {});
+    }
+  };
+
+  const handleExport = async (format: "png" | "markdown" | "json") => {
+    try {
+      if (format === "png") {
+        const element = document.querySelector(".react-flow") as HTMLElement | null;
+        if (!element) return;
+        const { toPng } = await import("html-to-image");
+        const dataUrl = await toPng(element, {
+          backgroundColor: "#ffffff",
+          pixelRatio: 2,
+        });
+        const link = document.createElement("a");
+        link.href = dataUrl;
+        link.download = `${mapTitle || "mapa"}.png`;
+        link.click();
+        return;
+      }
+      const link = document.createElement("a");
+      link.href = `/api/maps/${mapId}/export?format=${format}`;
+      link.download = "";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      console.error("Error exportando:", error);
+      addToast({ type: "error", message: "Error al exportar el mapa" });
+    }
+  };
+
   return (
     <div className="flex h-full flex-col">
-      <header className="flex h-14 items-center justify-between border-b bg-card px-4">
+      <header className="flex min-h-14 flex-wrap items-center justify-between gap-2 border-b bg-card px-4 py-2">
         <div className="flex items-center gap-4">
           <a href="/dashboard">
             <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -345,10 +418,51 @@ export default function MapEditorPage() {
           </a>
           <div className="flex items-center gap-2">
             <Brain className="h-5 w-5 text-primary" />
-            <span className="font-medium">Editor de mapa</span>
+            {isRenaming ? (
+              <div className="flex items-center gap-1">
+                <Input
+                  autoFocus
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleRename();
+                    if (e.key === "Escape") setIsRenaming(false);
+                  }}
+                  className="h-8 w-56"
+                />
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleRename}>
+                  <Check className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsRenaming(false)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="font-medium line-clamp-1">{mapTitle}</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  title="Renombrar mapa"
+                  onClick={() => {
+                    setRenameValue(mapTitle);
+                    setIsRenaming(true);
+                  }}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="icon" className="h-8 w-8" title="Deshacer (Ctrl+Z)" onClick={() => undo()}>
+            <Undo2 className="h-4 w-4" />
+          </Button>
+          <Button variant="outline" size="icon" className="h-8 w-8" title="Rehacer (Ctrl+Shift+Z)" onClick={() => redo()}>
+            <Redo2 className="h-4 w-4" />
+          </Button>
           <Button variant="outline" size="sm" className="gap-2" onClick={handleCreateNode} disabled={isCreatingNode}>
             <Plus className="h-4 w-4" />
             Nuevo nodo
@@ -357,7 +471,31 @@ export default function MapEditorPage() {
             <Users className="h-4 w-4" />
             Compartir
           </Button>
-          <Button variant="outline" size="sm" className="gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button variant="outline" size="sm" className="gap-2">
+                  <Download className="h-4 w-4" />
+                  Exportar
+                </Button>
+              }
+            />
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => handleExport("png")}>
+                <ImageIcon className="mr-2 h-4 w-4" />
+                Imagen PNG
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExport("markdown")}>
+                <FileText className="mr-2 h-4 w-4" />
+                Markdown
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExport("json")}>
+                <FileJson className="mr-2 h-4 w-4" />
+                JSON
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button variant="outline" size="sm" className="gap-2" onClick={handleToggleFullscreen}>
             <Maximize2 className="h-4 w-4" />
             Pantalla completa
           </Button>

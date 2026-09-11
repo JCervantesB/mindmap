@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { users, mindMaps, mapNodes, mapCollaborators } from "@/lib/db/schema";
 import { eq, and, isNull, desc, sql, or } from "drizzle-orm";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const { userId } = await auth();
     if (!userId) {
@@ -19,6 +19,16 @@ export async function GET() {
     if (!user) {
       return NextResponse.json([]);
     }
+
+    const q = request.nextUrl.searchParams.get("q")?.trim();
+
+    const searchFilter = q
+      ? sql`(
+          ${mindMaps.title} ILIKE ${`%${q}%`} OR
+          ${mindMaps.description} ILIKE ${`%${q}%`} OR
+          ${mindMaps.rootTopic} ILIKE ${`%${q}%`}
+        )`
+      : undefined;
 
     const maps = await db
       .select({
@@ -43,7 +53,8 @@ export async function GET() {
               WHERE map_collaborators.map_id = mind_maps.id 
               AND map_collaborators.user_id = ${user.id}
             )`
-          )
+          ),
+          searchFilter
         )
       )
       .orderBy(desc(mindMaps.updatedAt));

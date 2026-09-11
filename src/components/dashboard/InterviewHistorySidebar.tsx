@@ -58,6 +58,7 @@ export function InterviewHistorySidebar({
   const [sessions, setSessions] = useState<Session[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
+  const [showAll, setShowAll] = useState(false);
 
   const fetchSessions = async () => {
     try {
@@ -77,13 +78,17 @@ export function InterviewHistorySidebar({
     fetchSessions();
   }, []);
 
-  const recentSessions = sessions.slice(0, 5);
+  const recentSessions = showAll ? sessions : sessions.slice(0, 5);
   const hasMore = sessions.length > 5;
 
   return (
     <div className="w-full">
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          const next = !isOpen;
+          setIsOpen(next);
+          if (!next) setShowAll(false);
+        }}
         className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
       >
         <div className="flex items-center gap-2">
@@ -138,8 +143,11 @@ export function InterviewHistorySidebar({
               })}
 
               {hasMore && (
-                <button className="flex w-full items-center justify-center gap-1 rounded-lg px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                  Ver todas ({sessions.length})
+                <button
+                  onClick={() => setShowAll((s) => !s)}
+                  className="flex w-full items-center justify-center gap-1 rounded-lg px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                >
+                  {showAll ? "Mostrar menos" : `Ver todas (${sessions.length})`}
                 </button>
               )}
             </>

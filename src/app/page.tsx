@@ -94,16 +94,23 @@ export default function Home() {
                   </Button>
                 </a>
               )}
-              <Button size="lg" variant="outline" className="gap-2">
+              <Button
+                size="lg"
+                variant="outline"
+                className="gap-2"
+                onClick={() =>
+                  document.getElementById("features")?.scrollIntoView({ behavior: "smooth" })
+                }
+              >
                 <BookOpen className="h-4 w-4" />
-                Ver demostración
+                Ver cómo funciona
               </Button>
             </div>
           </div>
         </section>
 
         {/* Features */}
-        <section className="w-full py-16 px-4">
+        <section id="features" className="w-full py-16 px-4">
           <div className="mx-auto max-w-5xl grid gap-8 md:grid-cols-3">
             <div className="flex flex-col items-center text-center">
               <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">

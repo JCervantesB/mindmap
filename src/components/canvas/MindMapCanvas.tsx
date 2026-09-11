@@ -51,6 +51,8 @@ function FlowCanvas({ mapId, onNodeSelect }: MindMapCanvasProps) {
     setEdges: setStoreEdges,
     minimapOpen,
     toggleNodeCollapse,
+    undo,
+    redo,
   } = useCanvasStore();
 
   const [localNodes, setLocalNodes, onNodesChange] = useNodesState(storeNodes);
@@ -83,6 +85,33 @@ function FlowCanvas({ mapId, onNodeSelect }: MindMapCanvasProps) {
   useEffect(() => {
     setLocalEdges(storeEdges);
   }, [storeEdges, setLocalEdges]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const active = document.activeElement;
+      const tag = active?.tagName?.toLowerCase();
+      if (
+        tag === "input" ||
+        tag === "textarea" ||
+        active?.getAttribute?.("contenteditable") === "true" ||
+        active?.closest?.(".ProseMirror")
+      ) {
+        return;
+      }
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod) return;
+      if (e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+      } else if (e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [undo, redo]);
 
   const onNodesChangeHandler = useCallback(
     (changes: NodeChange[]) => {
