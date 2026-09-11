@@ -13,6 +13,14 @@ export type ResearchStatus = 'queued' | 'running' | 'completed' | 'failed' | 'ca
 export type GenerationStatus = 'queued' | 'running' | 'streamed' | 'completed' | 'failed' | 'canceled';
 export type TaskType = 'initial_map' | 'node_content' | 'node_expansion' | 'node_questions' | 'rewrite';
 
+export interface InterviewContext {
+  topic: string;
+  objective: string;
+  audience: string;
+  knowledgeLevel: string;
+  depthPreference: string;
+}
+
 export interface User {
   id: string;
   clerkUserId: string;

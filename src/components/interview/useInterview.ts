@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { toast } from "sonner";
-import type { InterviewContext } from "@/types/interview";
+import type { InterviewContext } from "@/shared/domain/types";
 
 type TextPart = { type: 'text'; text: string };
 

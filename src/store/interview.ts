@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { InterviewContext } from '@/types/interview';
+import type { InterviewContext } from '@/shared/domain/types';
 
 export type InterviewSessionStatus = 'idle' | 'in_progress' | 'completed' | 'abandoned';
 
