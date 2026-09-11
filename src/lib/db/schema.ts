@@ -278,6 +278,19 @@ export const domainEvents = pgTable('domain_events', {
   index('domain_events_map_id_idx').on(table.mapId),
 ]);
 
+export const comments = pgTable('comments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  mapId: uuid('map_id').references(() => mindMaps.id).notNull(),
+  nodeId: uuid('node_id').references(() => mapNodes.id).notNull(),
+  authorId: uuid('author_id').references(() => users.id).notNull(),
+  content: text('content').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index('comments_node_id_idx').on(table.nodeId),
+  index('comments_map_id_idx').on(table.mapId),
+]);
+
 export const usersRelations = relations(users, ({ many }) => ({
   ownedMaps: many(mindMaps),
   collaborations: many(mapCollaborators),

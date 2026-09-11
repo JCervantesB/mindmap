@@ -7,13 +7,24 @@ import { NodeHeader } from "./NodeHeader";
 import { NodeViewContent } from "./NodeViewContent";
 import { NodeEditContent } from "./NodeEditContent";
 import { NodeActions } from "./NodeActions";
+import { NodeHistoryContent } from "./NodeHistoryContent";
+import { NodeSourcesContent } from "./NodeSourcesContent";
+import { NodeCommentsContent } from "./NodeCommentsContent";
+import { FileText, History, Link2, MessageSquare } from "lucide-react";
 
 interface NodeDetailPanelProps {
   mapId: string;
 }
 
 export function NodeDetailPanel({ mapId }: NodeDetailPanelProps) {
-  const { detailPanelOpen, setDetailPanelOpen, detailPanelWidth, setDetailPanelWidth } = useUIStore();
+  const {
+    detailPanelOpen,
+    setDetailPanelOpen,
+    detailPanelWidth,
+    setDetailPanelWidth,
+    detailPanelTab,
+    setDetailPanelTab,
+  } = useUIStore();
 
   const {
     selectedNode,
@@ -88,7 +99,7 @@ export function NodeDetailPanel({ mapId }: NodeDetailPanelProps) {
   return (
     <div
       ref={panelRef}
-      className="relative border-l bg-card flex flex-col h-full shrink-0"
+      className="relative border-l bg-card flex flex-col h-full shrink-0 max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:h-[60vh] max-md:w-full! max-md:border-t max-md:border-l-0 max-md:z-50"
       style={{ width: detailPanelWidth }}
     >
       <div
@@ -125,7 +136,43 @@ export function NodeDetailPanel({ mapId }: NodeDetailPanelProps) {
             onEditorialStatusChange={handleEditorialStatusChange}
           />
         ) : (
-          <NodeViewContent node={selectedNode} />
+          <>
+            <div className="mb-4 flex items-center gap-1 rounded-lg bg-muted p-1">
+              <TabButton
+                active={detailPanelTab === "content"}
+                onClick={() => setDetailPanelTab("content")}
+                icon={<FileText className="h-3.5 w-3.5" />}
+                label="Contenido"
+              />
+              <TabButton
+                active={detailPanelTab === "history"}
+                onClick={() => setDetailPanelTab("history")}
+                icon={<History className="h-3.5 w-3.5" />}
+                label="Historial"
+              />
+              <TabButton
+                active={detailPanelTab === "sources"}
+                onClick={() => setDetailPanelTab("sources")}
+                icon={<Link2 className="h-3.5 w-3.5" />}
+                label="Fuentes"
+              />
+              <TabButton
+                active={detailPanelTab === "comments"}
+                onClick={() => setDetailPanelTab("comments")}
+                icon={<MessageSquare className="h-3.5 w-3.5" />}
+                label="Comentarios"
+              />
+            </div>
+            {detailPanelTab === "history" ? (
+              <NodeHistoryContent mapId={mapId} nodeId={selectedNode.id} />
+            ) : detailPanelTab === "sources" ? (
+              <NodeSourcesContent mapId={mapId} nodeId={selectedNode.id} />
+            ) : detailPanelTab === "comments" ? (
+              <NodeCommentsContent mapId={mapId} nodeId={selectedNode.id} />
+            ) : (
+              <NodeViewContent node={selectedNode} />
+            )}
+          </>
         )}
       </div>
 
@@ -144,5 +191,32 @@ export function NodeDetailPanel({ mapId }: NodeDetailPanelProps) {
         onDelete={handleDelete}
       />
     </div>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex h-7 flex-1 items-center justify-center gap-1.5 rounded-md text-xs font-medium transition-colors ${
+        active
+          ? "bg-background text-foreground shadow-sm"
+          : "text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      {icon}
+      {label}
+    </button>
   );
 }

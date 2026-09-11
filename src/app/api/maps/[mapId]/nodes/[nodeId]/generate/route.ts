@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
-import { mapNodes, mindMaps, users } from "@/lib/db/schema";
+import { mapNodes, mindMaps, users, nodeRevisions, researchTasks, nodeSources, generationTasks } from "@/lib/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { requirePermission } from "@/lib/permissions";
+import { handleApiError } from "@/lib/errors";
+import { getEnv } from "@/env";
+import { isRateLimited } from "@/lib/rate-limit";
+import { getModelForPurpose } from "@/lib/ai/models";
 import { researcherAgent } from "@/lib/agents/researcher";
 import { qaAgent } from "@/lib/agents/qa";
 import { streamEditorContent } from "@/lib/agents/streamingEditor";
@@ -19,7 +23,14 @@ export async function POST(
       return NextResponse.json({ error: "No autenticado" }, { status: 401 });
     }
 
-    if (!process.env.EXA_API_KEY) {
+    if (isRateLimited(`generate:${userId}`, 30, 60 * 60 * 1000)) {
+      return NextResponse.json(
+        { error: "Demasiadas generaciones, inténtalo más tarde" },
+        { status: 429 }
+      );
+    }
+
+    if (!getEnv().EXA_API_KEY) {
       return NextResponse.json(
         { error: "Servicio de investigación no disponible. Configure EXA_API_KEY" },
         { status: 500 }
@@ -79,12 +90,27 @@ export async function POST(
       learningObjective,
     } = body;
 
+    const siblingNodes = node.parentNodeId
+      ? await db
+          .select()
+          .from(mapNodes)
+          .where(
+            and(
+              eq(mapNodes.mapId, mapId),
+              eq(mapNodes.parentNodeId, node.parentNodeId),
+              isNull(mapNodes.deletedAt)
+            )
+          )
+      : [];
+
     const context: ResearchContext = {
       topic: node.title,
       nodeTitle: node.title,
       rootTopic: map.rootTopic || node.title,
       parentTopic: parentNode?.title,
-      siblingTopics: [],
+      siblingTopics: siblingNodes
+        .filter((s) => s.id !== nodeId)
+        .map((s) => s.title),
       targetAudience: targetAudience || "estudiantes universitarios",
       difficultyLevel: difficultyLevel || "intermediate",
       learningObjective,
@@ -94,32 +120,99 @@ export async function POST(
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          controller.enqueue(`data: ${JSON.stringify({ stage: "research" })}\n\n`);
+          let currentContext = { ...context };
+          let research = await researcherAgent(currentContext);
 
-          const research = await researcherAgent(context);
+          const persistSources = async () => {
+            const startedAt = new Date();
+            const [researchTask] = await db
+              .insert(researchTasks)
+              .values({
+                mapId,
+                nodeId,
+                requestedBy: user.id,
+                provider: "exa",
+                status: "completed",
+                queryText: research.query,
+                promptContext: JSON.stringify(currentContext),
+                rawResultJson: JSON.stringify(research.sources),
+                normalizedResultJson: JSON.stringify(research.sources),
+                startedAt,
+                completedAt: new Date(),
+              })
+              .returning();
 
-          controller.enqueue(`data: ${JSON.stringify({ stage: "qa" })}\n\n`);
+            await db
+              .delete(nodeSources)
+              .where(and(eq(nodeSources.mapId, mapId), eq(nodeSources.nodeId, nodeId)));
 
-          let qa;
-          try {
-            qa = await qaAgent(research);
-          } catch {
-            qa = {
-              isSufficient: true,
-              qualityScore: 7,
-              coverageScore: 7,
-              sourceQualityScore: 7,
-              clarityScore: 7,
-              gaps: [],
-              recommendations: [],
-              additionalQueries: [],
-              validationReport: "QA omitido",
+            for (const source of research.sources) {
+              await db.insert(nodeSources).values({
+                mapId,
+                nodeId,
+                researchTaskId: researchTask.id,
+                title: source.title,
+                url: source.url,
+                provider: "exa",
+                snippet: source.snippet || null,
+                relevanceScore:
+                  source.relevanceScore != null ? String(source.relevanceScore) : null,
+                metadataJson: JSON.stringify({ highlights: source.highlights ?? [] }),
+              });
+            }
+          };
+
+          const runQa = async () => {
+            controller.enqueue(`data: ${JSON.stringify({ stage: "qa" })}\n\n`);
+            try {
+              return await qaAgent(research);
+            } catch {
+              return {
+                isSufficient: true,
+                qualityScore: 7,
+                coverageScore: 7,
+                sourceQualityScore: 7,
+                clarityScore: 7,
+                gaps: [],
+                recommendations: [],
+                additionalQueries: [],
+                validationReport: "QA omitido",
+              };
+            }
+          };
+
+          await persistSources();
+          let qa = await runQa();
+
+          // Re-run research with additional queries when QA finds gaps.
+          let iterations = 0;
+          while (
+            !qa.isSufficient &&
+            iterations < 1 &&
+            qa.additionalQueries &&
+            qa.additionalQueries.length > 0
+          ) {
+            iterations++;
+            controller.enqueue(`data: ${JSON.stringify({ stage: "research" })}\n\n`);
+            const extra = qa.additionalQueries.join("; ");
+            currentContext = {
+              ...currentContext,
+              additionalContext: [
+                currentContext.additionalContext,
+                `Preguntas adicionales del control de calidad: ${extra}`,
+              ]
+                .filter(Boolean)
+                .join("\n"),
             };
+            research = await researcherAgent(currentContext);
+            await persistSources();
+            qa = await runQa();
           }
 
           controller.enqueue(`data: ${JSON.stringify({ stage: "editor" })}\n\n`);
 
           const editorStream = streamEditorContent(research, qa);
+          const generationStartedAt = Date.now();
 
           for await (const chunk of editorStream.fullStream) {
             if (chunk.type === "text-delta") {
@@ -134,6 +227,44 @@ export async function POST(
           const title = node.title;
           const shortSummary = research.summary.overview.slice(0, 200);
 
+          try {
+            const usage = await editorStream.usage;
+            const editorModel = getModelForPurpose("expansion");
+            await db.insert(generationTasks).values({
+              mapId,
+              nodeId,
+              requestedBy: user.id,
+              taskType: "node_generation",
+              provider: "openrouter",
+              modelName: editorModel.id,
+              status: "completed",
+              promptText: `node: ${node.title} | map: ${mapId}`,
+              promptContext: JSON.stringify(context),
+              responseText: fullContent.slice(0, 2000),
+              tokenUsageJson: JSON.stringify({
+                inputTokens: usage?.inputTokens ?? null,
+                outputTokens: usage?.outputTokens ?? null,
+                totalTokens: usage?.totalTokens ?? null,
+              }),
+              latencyMs: Date.now() - generationStartedAt,
+              completedAt: new Date(),
+            });
+          } catch (usageError) {
+            console.error("Error registrando uso de generación:", usageError);
+          }
+
+          await db.insert(nodeRevisions).values({
+            nodeId: node.id,
+            mapId,
+            versionNumber: node.version + 1,
+            title: node.title,
+            shortSummary: node.shortSummary,
+            contentMarkdown: node.contentMarkdown,
+            generationMode: node.generationMode,
+            editorialStatus: node.editorialStatus,
+            createdBy: user.id,
+          });
+
           await db
             .update(mapNodes)
             .set({
@@ -143,6 +274,7 @@ export async function POST(
               learningObjective: context.learningObjective || "Comprender los conceptos fundamentales",
               difficultyLevel: context.difficultyLevel,
               editorialStatus: "review",
+              version: node.version + 2,
               lastGeneratedAt: new Date(),
               updatedAt: new Date(),
             })
@@ -178,6 +310,6 @@ export async function POST(
     });
   } catch (error) {
     console.error("Error generando contenido:", error);
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
+    return handleApiError(error);
   }
 }
