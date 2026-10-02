@@ -11,12 +11,89 @@ import { useAuth } from "@clerk/nextjs";
 import { useUIStore } from "@/store/ui";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 import type { Components } from "react-markdown";
 
 const cleanLegacyBreaks = (markdown: string) =>
   markdown.replace(/<br\s*\/?>/gi, "\n");
 
 const markdownComponents: Components = {
+  h1: ({ children }) => (
+    <h1 className="mt-6 mb-3 border-b pb-2 text-xl font-bold text-foreground first:mt-0">
+      {children}
+    </h1>
+  ),
+  h2: ({ children }) => (
+    <h2 className="mt-5 mb-3 border-b pb-1 text-lg font-semibold text-foreground first:mt-0">
+      {children}
+    </h2>
+  ),
+  h3: ({ children }) => (
+    <h3 className="mt-4 mb-2 text-base font-semibold text-foreground first:mt-0">
+      {children}
+    </h3>
+  ),
+  h4: ({ children }) => (
+    <h4 className="mt-3 mb-2 text-sm font-semibold text-foreground first:mt-0">
+      {children}
+    </h4>
+  ),
+  p: ({ children }) => (
+    <p className="mb-4 leading-7 text-foreground last:mb-0">{children}</p>
+  ),
+  ul: ({ children }) => (
+    <ul className="mb-4 list-disc space-y-1 pl-5 text-foreground">{children}</ul>
+  ),
+  ol: ({ children }) => (
+    <ol className="mb-4 list-decimal space-y-1 pl-5 text-foreground">{children}</ol>
+  ),
+  li: ({ children }) => <li className="leading-7 marker:text-muted-foreground">{children}</li>,
+  blockquote: ({ children }) => (
+    <blockquote className="my-4 border-l-4 border-border pl-4 italic text-muted-foreground">
+      {children}
+    </blockquote>
+  ),
+  a: ({ href, children }) => (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="font-medium text-primary underline underline-offset-4 hover:text-primary/80"
+    >
+      {children}
+    </a>
+  ),
+  hr: () => <hr className="my-6 border-border" />,
+  code(props) {
+    const { inline, className, children, ...rest } = props as {
+      inline?: boolean;
+      className?: string;
+      children?: React.ReactNode;
+    };
+
+    if (inline || !className) {
+      return (
+        <code
+          className="inline-block rounded bg-muted px-1.5 py-0.5 font-mono text-[0.85em] text-foreground break-inside-avoid"
+          {...rest}
+        >
+          {children}
+        </code>
+      );
+    }
+
+    return (
+      <code
+        className="block overflow-x-auto rounded-lg bg-muted p-4 font-mono text-sm text-foreground"
+        {...rest}
+      >
+        {children}
+      </code>
+    );
+  },
+  pre: ({ children }) => (
+    <pre className="my-4 overflow-x-auto rounded-lg bg-muted p-4">{children}</pre>
+  ),
   img: ({ src, alt }) => (
     // eslint-disable-next-line @next/next/no-img-element
     <img
@@ -312,7 +389,7 @@ export default function SharePage() {
                 )}
                 {selectedNode.data.contentMarkdown && (
                   <div className="prose prose-sm dark:prose-invert max-w-none">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                    <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={markdownComponents}>
                       {cleanLegacyBreaks(selectedNode.data.contentMarkdown)}
                     </ReactMarkdown>
                   </div>

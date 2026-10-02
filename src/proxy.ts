@@ -5,7 +5,12 @@ export default clerkMiddleware(async (auth, request) => {
   const url = request.nextUrl.clone();
   const pathname = url.pathname;
 
-  if (pathname.startsWith("/sign-in") || pathname.startsWith("/sign-up")) {
+  if (
+    pathname.startsWith("/sign-in") ||
+    pathname.startsWith("/sign-up") ||
+    pathname.startsWith("/share/") ||
+    pathname.startsWith("/api/share/")
+  ) {
     return NextResponse.next();
   }
 
